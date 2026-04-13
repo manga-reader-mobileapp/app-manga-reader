@@ -26,6 +26,9 @@ import {
   updateReadProgress,
   setCompletedChapter,
   getChapterPagesProgress,
+  getReadChapterIds,
+  markChaptersRead,
+  markChaptersUnread,
   type CachedChapter,
 } from '@/services/library';
 import {
@@ -60,7 +63,8 @@ export default function MangaDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [lastRead, setLastRead] = useState<string | null>(null); // current position chapter
   const [lastReadPage, setLastReadPage] = useState<number | null>(null);
-  const [completedChap, setCompletedChap] = useState<string | null>(null); // highest fully read
+  const [completedChap, setCompletedChap] = useState<string | null>(null); // legacy
+  const [readIds, setReadIds] = useState<Set<number>>(new Set()); // per-chapter read
   const [chaptersAsc, setChaptersAsc] = useState(false); // Default: 99→1
 
   // Selection mode
@@ -103,6 +107,7 @@ export default function MangaDetailScreen() {
           }
         });
         getChapterPagesProgress('nexus', mangaId).then(setChapterPagesMap);
+        getReadChapterIds('nexus', mangaId).then(setReadIds);
         // Also refresh downloaded status
         async function refreshDownloads() {
           const ids = new Set<number>();
@@ -337,40 +342,31 @@ export default function MangaDetailScreen() {
   /** Mark selected chapters as read (set progress to the highest selected) */
   async function markSelectedAsRead() {
     if (selectedIds.size === 0 || !mangaId) return;
-    const selected = chapters.filter((c) => selectedIds.has(c.id));
-    const highest = selected.sort((a, b) => parseFloat(b.number) - parseFloat(a.number))[0];
-    if (highest) {
-      await setCompletedChapter('nexus', mangaId, highest.number);
-      setCompletedChap(highest.number);
-    }
+    const ids = [...selectedIds];
+    await markChaptersRead('nexus', mangaId, ids);
+    setReadIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(id)); return next; });
     exitSelection();
   }
 
   async function markBelowAsRead() {
     if (selectedIds.size === 0 || !mangaId) return;
+    // Find highest selected, mark all from first up to it
     const selected = chapters.filter((c) => selectedIds.has(c.id));
     const highest = selected.sort((a, b) => parseFloat(b.number) - parseFloat(a.number))[0];
-    if (highest) {
-      await setCompletedChapter('nexus', mangaId, highest.number);
-      setCompletedChap(highest.number);
-    }
+    const sorted = [...chapters].sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
+    const ids = sorted
+      .filter((c) => parseFloat(c.number) <= parseFloat(highest.number))
+      .map((c) => c.id);
+    await markChaptersRead('nexus', mangaId, ids);
+    setReadIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(id)); return next; });
     exitSelection();
   }
 
   async function markSelectedAsUnread() {
     if (selectedIds.size === 0 || !mangaId) return;
-    const selected = chapters.filter((c) => selectedIds.has(c.id));
-    const lowest = selected.sort((a, b) => parseFloat(a.number) - parseFloat(b.number))[0];
-    const sorted = [...chapters].sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
-    const lowestIdx = sorted.findIndex((c) => c.id === lowest.id);
-    if (lowestIdx <= 0) {
-      await setCompletedChapter('nexus', mangaId, null);
-      setCompletedChap(null);
-    } else {
-      const prev = sorted[lowestIdx - 1];
-      await setCompletedChapter('nexus', mangaId, prev.number);
-      setCompletedChap(prev.number);
-    }
+    const ids = [...selectedIds];
+    await markChaptersUnread('nexus', mangaId, ids);
+    setReadIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next; });
     exitSelection();
   }
 
@@ -390,12 +386,9 @@ export default function MangaDetailScreen() {
   async function markAllAsRead() {
     if (!mangaId || chapters.length === 0) return;
     setShowMenu(false);
-    const sorted = [...chapters].sort((a, b) => parseFloat(b.number) - parseFloat(a.number));
-    const lastCh = sorted[0];
-    if (lastCh) {
-      await setCompletedChapter('nexus', mangaId, lastCh.number);
-      setCompletedChap(lastCh.number);
-    }
+    const allIds = chapters.map((c) => c.id);
+    await markChaptersRead('nexus', mangaId, allIds);
+    setReadIds(new Set(allIds));
   }
 
   function formatViews(v: number): string {
@@ -415,6 +408,7 @@ export default function MangaDetailScreen() {
       chapterId: String(ch.id),
       mangaTitle: title,
       mangaSlug: slug!,
+      mangaCover: coverUrl || '',
       chapterNumber: ch.number,
       chapterList: JSON.stringify(chaptersForNav),
       sourceMangaId: String(mangaId),
@@ -432,29 +426,10 @@ export default function MangaDetailScreen() {
 
     const sorted = [...chapters].sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
 
-    // Find next chapter after the last COMPLETED one
+    // Find first unread chapter
     let targetChapter: DisplayChapter;
-    let resumePage: number | null = null;
-
-    if (completedChap) {
-      const completedIdx = sorted.findIndex(
-        (c) => parseFloat(c.number) > parseFloat(completedChap),
-      );
-      if (completedIdx !== -1) {
-        targetChapter = sorted[completedIdx];
-        // Check if we have a saved page for this chapter
-        const savedPage = chapterPagesMap[targetChapter.id];
-        if (savedPage && savedPage > 1) resumePage = savedPage;
-      } else {
-        // All chapters completed — open last one
-        targetChapter = sorted[sorted.length - 1];
-      }
-    } else {
-      // Nothing completed — start from chapter 1
-      targetChapter = sorted[0];
-      const savedPage = chapterPagesMap[targetChapter.id];
-      if (savedPage && savedPage > 1) resumePage = savedPage;
-    }
+    const firstUnread = sorted.find((c) => !readIds.has(c.id));
+    targetChapter = firstUnread || sorted[0];
 
     const chaptersForNav = sorted.map((c) => ({ id: c.id, number: c.number }));
     const params: Record<string, string> = {
@@ -464,7 +439,6 @@ export default function MangaDetailScreen() {
       chapterNumber: targetChapter.number,
       chapterList: JSON.stringify(chaptersForNav),
     };
-    if (resumePage) params.resumePage = String(resumePage);
     if (downloadedIds.has(targetChapter.id)) {
       params.offline = 'true';
       params.offlineSource = 'nexus';
@@ -592,10 +566,9 @@ export default function MangaDetailScreen() {
           </Pressable>
 
           {chapters.length > 0 ? (() => {
-            const lastChNum = chaptersAscending[chaptersAscending.length - 1]?.number || '0';
-            const allCompleted = completedChap && parseFloat(completedChap) >= parseFloat(lastChNum);
+            const allCompleted = chaptersAscending.every((c) => readIds.has(c.id));
 
-            if (allCompleted) {
+            if (allCompleted && readIds.size > 0) {
               return (
                 <View style={[styles.actionBtn, styles.actionBtnDone]}>
                   <IconSymbol name="checkmark" size={18} color="#10B981" />
@@ -604,10 +577,8 @@ export default function MangaDetailScreen() {
               );
             }
 
-            // Find next chapter to read
-            const nextCh = completedChap
-              ? chaptersAscending.find((c) => parseFloat(c.number) > parseFloat(completedChap))
-              : chaptersAscending[0];
+            // Find first unread chapter
+            const nextCh = chaptersAscending.find((c) => !readIds.has(c.id));
 
             return (
               <Pressable
@@ -616,7 +587,7 @@ export default function MangaDetailScreen() {
               >
                 <IconSymbol name="play.fill" size={18} color="#fff" />
                 <ThemedText style={styles.actionBtnTextPrimary}>
-                  {completedChap ? `Continuar Cap. ${nextCh?.number || ''}` : 'Começar a ler'}
+                  {readIds.size > 0 ? `Continuar Cap. ${nextCh?.number || ''}` : 'Começar a ler'}
                 </ThemedText>
               </Pressable>
             );
@@ -697,7 +668,7 @@ export default function MangaDetailScreen() {
             const isDownloaded = downloadedIds.has(ch.id);
             const isQueued = queueIds.has(ch.id);
             const isOfflineUnavailable = isOfflineMode && !isDownloaded;
-            const isRead = completedChap ? parseFloat(ch.number) <= parseFloat(completedChap) : false;
+            const isRead = readIds.has(ch.id);
             const pageProgress = chapterPagesMap[ch.id];
             const isCurrentChapter = lastRead === ch.number;
 

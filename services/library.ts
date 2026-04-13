@@ -28,8 +28,9 @@ export interface LibraryManga {
   lastReadChapterId: number | null;
   lastReadPage: number | null; // page number within that chapter
   lastReadAt: string | null; // ISO date
-  // Completed progress (chapters fully read through)
-  completedChapter: string | null; // highest chapter number fully read
+  // Completed progress — individual chapter IDs that are fully read
+  completedChapter: string | null; // legacy, kept for migration
+  readChapterIds?: number[]; // list of chapter IDs marked as read
   // Per-chapter read pages: { chapterId: lastPageRead }
   chapterPages?: Record<number, number>;
   addedAt: string; // ISO date
@@ -267,26 +268,76 @@ export async function updateReadProgress(
   await saveAll(data);
 }
 
-/** Mark a chapter as fully completed (user reached the end) */
-export async function markChapterComplete(
+/** Mark a single chapter as read by its ID */
+export async function markChapterRead(
   source: string,
   sourceId: number,
-  chapterNumber: string,
+  chapterId: number,
 ): Promise<void> {
   const data = await getAll();
   const id = `${source}:${sourceId}`;
   const entry = data[id];
   if (!entry) return;
 
-  const current = parseFloat(entry.completedChapter || '0');
-  const incoming = parseFloat(chapterNumber);
-  // Only advance, never go backwards
-  if (incoming > current) {
-    entry.completedChapter = chapterNumber;
+  if (!entry.readChapterIds) entry.readChapterIds = [];
+  if (!entry.readChapterIds.includes(chapterId)) {
+    entry.readChapterIds.push(chapterId);
   }
 
   data[id] = entry;
   await saveAll(data);
+}
+
+/** Mark multiple chapters as read */
+export async function markChaptersRead(
+  source: string,
+  sourceId: number,
+  chapterIds: number[],
+): Promise<void> {
+  const data = await getAll();
+  const id = `${source}:${sourceId}`;
+  const entry = data[id];
+  if (!entry) return;
+
+  if (!entry.readChapterIds) entry.readChapterIds = [];
+  for (const cid of chapterIds) {
+    if (!entry.readChapterIds.includes(cid)) {
+      entry.readChapterIds.push(cid);
+    }
+  }
+
+  data[id] = entry;
+  await saveAll(data);
+}
+
+/** Mark chapters as unread */
+export async function markChaptersUnread(
+  source: string,
+  sourceId: number,
+  chapterIds: number[],
+): Promise<void> {
+  const data = await getAll();
+  const id = `${source}:${sourceId}`;
+  const entry = data[id];
+  if (!entry) return;
+
+  const removeSet = new Set(chapterIds);
+  entry.readChapterIds = (entry.readChapterIds || []).filter((cid) => !removeSet.has(cid));
+
+  data[id] = entry;
+  await saveAll(data);
+}
+
+/** Get set of read chapter IDs */
+export async function getReadChapterIds(
+  source: string,
+  sourceId: number,
+): Promise<Set<number>> {
+  const data = await getAll();
+  const id = `${source}:${sourceId}`;
+  const entry = data[id];
+  if (!entry) return new Set();
+  return new Set(entry.readChapterIds || []);
 }
 
 /** Force set completed chapter (for "mark as read" / "mark unread" actions) */

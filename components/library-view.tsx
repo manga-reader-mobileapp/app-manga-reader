@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import PagerView from 'react-native-pager-view';
 import {
   ActivityIndicator,
   Alert,
@@ -131,6 +132,8 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
   });
 
   const allTabs = [null, ...categories]; // null = "Padrão"
+  const pagerRef = useRef<PagerView>(null);
+  const activeTabIdx = allTabs.indexOf(activeCategory);
 
   async function changeGrid(size: GridSize) {
     setGrid(size);
@@ -171,11 +174,8 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
   }
 
   function getUnreadCount(manga: LibraryManga): number {
-    const completed = manga.completedChapter || manga.lastReadChapter;
-    if (!completed) return manga.totalChapters;
-    const read = parseFloat(completed);
-    if (isNaN(read)) return 0;
-    return Math.max(0, manga.totalChapters - Math.floor(read));
+    const readCount = manga.readChapterIds?.length || 0;
+    return Math.max(0, manga.totalChapters - readCount);
   }
 
   // Selection
@@ -339,8 +339,10 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
                 key={label}
                 style={[styles.tab, isActive && styles.tabActive]}
                 onPress={() => {
+                  const idx = allTabs.indexOf(cat);
                   setActiveCategory(cat);
                   AsyncStorage.setItem(CAT_KEY, cat === null ? '__default__' : cat);
+                  if (idx >= 0) pagerRef.current?.setPage(idx);
                 }}
               >
                 <ThemedText style={[styles.tabText, isActive && styles.tabTextActive]}>
@@ -353,27 +355,76 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
       )}
 
       {/* ========== CONTENT ========== */}
-      {!loading && mangas.length === 0 ? (
-        <View style={styles.emptyState}>
-          <IconSymbol name="bookmark" size={48} color={Colors.dark.textMuted} />
-          <ThemedText style={styles.emptyTitle}>
-            {activeCategory ? `"${activeCategory}" vazia` : 'Biblioteca vazia'}
-          </ThemedText>
-          <ThemedText style={styles.emptyText}>
-            Adicione mangás à biblioteca pela página de detalhes
-          </ThemedText>
-        </View>
+      {allTabs.length > 1 ? (
+        <PagerView
+          ref={pagerRef}
+          style={{ flex: 1 }}
+          initialPage={activeTabIdx >= 0 ? activeTabIdx : 0}
+          onPageSelected={(e) => {
+            const idx = e.nativeEvent.position;
+            if (idx >= 0 && idx < allTabs.length) {
+              const cat = allTabs[idx];
+              setActiveCategory(cat);
+              AsyncStorage.setItem(CAT_KEY, cat === null ? '__default__' : cat);
+            }
+          }}
+        >
+          {allTabs.map((cat) => {
+            const catMangas = allMangas.filter((m) => {
+              if (cat === null) return !m.userCategory;
+              return m.userCategory === cat;
+            });
+            const label = cat || 'Padrão';
+            return (
+              <View key={label} style={{ flex: 1 }}>
+                {catMangas.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <IconSymbol name="bookmark" size={48} color={Colors.dark.textMuted} />
+                    <ThemedText style={styles.emptyTitle}>
+                      {cat ? `"${cat}" vazia` : 'Biblioteca vazia'}
+                    </ThemedText>
+                    <ThemedText style={styles.emptyText}>
+                      Adicione mangás à biblioteca pela página de detalhes
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <FlatList
+                    key={`grid-${grid}-${label}`}
+                    data={catMangas}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderCard}
+                    numColumns={grid}
+                    columnWrapperStyle={grid > 1 ? { gap: GAP, marginBottom: GAP } : undefined}
+                    contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 4, paddingBottom: 100 }}
+                    showsVerticalScrollIndicator={false}
+                  />
+                )}
+              </View>
+            );
+          })}
+        </PagerView>
       ) : (
-        <FlatList
-          key={`grid-${grid}-${activeCategory}`}
-          data={mangas}
-          keyExtractor={(item) => item.id}
-          renderItem={renderCard}
-          numColumns={grid}
-          columnWrapperStyle={grid > 1 ? { gap: GAP, marginBottom: GAP } : undefined}
-          contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 4, paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
-        />
+        // Single category — no pager
+        !loading && mangas.length === 0 ? (
+          <View style={styles.emptyState}>
+            <IconSymbol name="bookmark" size={48} color={Colors.dark.textMuted} />
+            <ThemedText style={styles.emptyTitle}>Biblioteca vazia</ThemedText>
+            <ThemedText style={styles.emptyText}>
+              Adicione mangás à biblioteca pela página de detalhes
+            </ThemedText>
+          </View>
+        ) : (
+          <FlatList
+            key={`grid-${grid}`}
+            data={mangas}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCard}
+            numColumns={grid}
+            columnWrapperStyle={grid > 1 ? { gap: GAP, marginBottom: GAP } : undefined}
+            contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 4, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+          />
+        )
       )}
 
       {/* ========== SELECTION ACTION BAR ========== */}

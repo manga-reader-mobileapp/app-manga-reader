@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DownloadsView } from '@/components/downloads-view';
+import { HistoryView } from '@/components/history-view';
 import { LibraryView } from '@/components/library-view';
 import { SettingsView } from '@/components/settings-view';
 import { ThemedText } from '@/components/themed-text';
@@ -12,8 +13,9 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { resumeQueue } from '@/services/downloads';
 import { setupNotifications } from '@/services/updater';
+import { checkAppUpdate, downloadUpdate, getCurrentVersion, type UpdateInfo } from '@/services/app-update';
 
-type MainTab = 'library' | 'downloads' | 'scans' | 'settings';
+type MainTab = 'library' | 'history' | 'downloads' | 'scans' | 'settings';
 
 interface MangaSource {
   id: string;
@@ -51,10 +53,19 @@ export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<MainTab>('library');
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
     resumeQueue();
     setupNotifications();
+    // Check for app updates
+    checkAppUpdate().then((info) => {
+      if (info) {
+        setUpdateInfo(info);
+        setShowUpdateModal(true);
+      }
+    });
   }, []);
 
   function openScan(sourceId: string) {
@@ -63,6 +74,7 @@ export default function MainScreen() {
 
   const tabs: { key: MainTab; icon: any; label: string }[] = [
     { key: 'library', icon: 'bookmark.fill', label: 'Biblioteca' },
+    { key: 'history', icon: 'clock.fill', label: 'Histórico' },
     { key: 'downloads', icon: 'arrow.down.circle.fill', label: 'Downloads' },
     { key: 'scans', icon: 'globe', label: 'Navegar' },
     { key: 'settings', icon: 'gearshape.fill', label: 'Mais' },
@@ -71,6 +83,7 @@ export default function MainScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {activeTab === 'library' && <LibraryView topInset={0} showHeader={true} />}
+      {activeTab === 'history' && <HistoryView topInset={0} />}
       {activeTab === 'downloads' && <DownloadsView topInset={0} showHeader={true} />}
       {activeTab === 'settings' && <SettingsView topInset={0} />}
 
@@ -134,6 +147,40 @@ export default function MainScreen() {
           </Pressable>
         ))}
       </View>
+
+      {/* ========== UPDATE MODAL ========== */}
+      <Modal
+        visible={showUpdateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowUpdateModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <ThemedText style={styles.modalTitle}>Nova versão disponível</ThemedText>
+            <ThemedText style={styles.modalVersion}>v{updateInfo?.version}</ThemedText>
+            {updateInfo?.changelog ? (
+              <ThemedText style={styles.modalChangelog}>{updateInfo.changelog}</ThemedText>
+            ) : null}
+            <ThemedText style={styles.modalCurrent}>Versão atual: v{getCurrentVersion()}</ThemedText>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalBtnSecondary} onPress={() => setShowUpdateModal(false)}>
+                <ThemedText style={styles.modalBtnSecondaryText}>Depois</ThemedText>
+              </Pressable>
+              <Pressable
+                style={styles.modalBtnPrimary}
+                onPress={() => {
+                  if (updateInfo?.url) downloadUpdate(updateInfo.url);
+                  setShowUpdateModal(false);
+                }}
+              >
+                <IconSymbol name="arrow.down.circle.fill" size={18} color="#fff" />
+                <ThemedText style={styles.modalBtnPrimaryText}>Atualizar</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -175,4 +222,17 @@ const styles = StyleSheet.create({
   bottomTab: { alignItems: 'center', gap: 3, paddingVertical: 4, flex: 1 },
   bottomTabText: { fontSize: 10, fontWeight: '600', color: Colors.dark.textMuted },
   bottomTabTextActive: { color: Colors.dark.primary },
+
+  // Update modal
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 32 },
+  modalBox: { backgroundColor: Colors.dark.surface, borderRadius: 20, padding: 28, width: '100%', borderWidth: 1, borderColor: Colors.dark.border },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: Colors.dark.text, textAlign: 'center' },
+  modalVersion: { fontSize: 28, fontWeight: '800', color: Colors.dark.primary, textAlign: 'center', marginTop: 8 },
+  modalChangelog: { fontSize: 14, color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 12, lineHeight: 20 },
+  modalCurrent: { fontSize: 12, color: Colors.dark.textMuted, textAlign: 'center', marginTop: 8 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 24 },
+  modalBtnSecondary: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.dark.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.dark.border },
+  modalBtnSecondaryText: { fontSize: 14, fontWeight: '600', color: Colors.dark.textSecondary },
+  modalBtnPrimary: { flex: 1, flexDirection: 'row', paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.dark.primary, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  modalBtnPrimaryText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });

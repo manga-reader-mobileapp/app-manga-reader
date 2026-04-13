@@ -22,7 +22,8 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getChapterPages } from '@/services/nexus/api';
 import type { NexusChapterRead, NexusReaderPage } from '@/services/nexus/types';
-import { updateReadProgress, markChapterComplete } from '@/services/library';
+import { updateReadProgress, markChapterRead } from '@/services/library';
+import { addToHistory } from '@/services/history';
 import { getLocalPages } from '@/services/downloads';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -176,11 +177,12 @@ function AutoImage({ uri, fitWidth, pageNumber, onRedownload }: AutoImageProps) 
 // ─── Main Reader ──────────────────────────────────────────────────────────────
 
 export default function ReaderScreen() {
-  const { chapterId, mangaTitle, mangaSlug, chapterNumber, chapterList, offline, offlineSource, offlineSourceId, resumePage, sourceMangaId } =
+  const { chapterId, mangaTitle, mangaSlug, mangaCover, chapterNumber, chapterList, offline, offlineSource, offlineSourceId, resumePage, sourceMangaId } =
     useLocalSearchParams<{
       chapterId: string;
       mangaTitle?: string;
       mangaSlug?: string;
+      mangaCover?: string;
       chapterNumber?: string;
       chapterList?: string;
       offline?: string;
@@ -398,6 +400,9 @@ export default function ReaderScreen() {
 
   // ── Jump to a chapter manually (resets everything) ──
   async function jumpToChapter(ch: { id: number; number: string }) {
+    // Mark the chapter we're leaving as completed
+    completeChapter(activeChapterIdRef.current, activeChapterNumberRef.current);
+
     setLoading(true);
 
     // Reset loaded tracking
@@ -444,8 +449,17 @@ export default function ReaderScreen() {
     if (now - lastPositionSaveRef.current < 3000) return;
     lastPositionSaveRef.current = now;
     if (mangaIdRef.current) {
-      // Save page number for display on project page
       updateReadProgress('nexus', mangaIdRef.current, chNum, chId, currentPageRef.current).catch(() => {});
+      // Update history
+      addToHistory({
+        mangaId: mangaIdRef.current,
+        source: 'nexus',
+        slug: mangaSlug || '',
+        title: mangaTitle || '',
+        coverUrl: mangaCover || null,
+        chapterNumber: chNum,
+        chapterId: chId,
+      }).catch(() => {});
     }
   }
 
@@ -454,10 +468,12 @@ export default function ReaderScreen() {
   function completeChapter(chId: number, chNum: string) {
     if (completedRef.current.has(chId)) return;
     completedRef.current.add(chId);
+    console.log('[READER] Completing chapter', chNum, 'id:', chId, 'mangaId:', mangaIdRef.current);
     if (mangaIdRef.current) {
-      markChapterComplete('nexus', mangaIdRef.current, chNum).catch(() => {});
-      // Also update position to this chapter (so "continue" knows where we are)
-      updateReadProgress('nexus', mangaIdRef.current, chNum, chId).catch(() => {});
+      markChapterRead('nexus', mangaIdRef.current, chId).catch((e) => console.error('[READER] markRead error:', e));
+      updateReadProgress('nexus', mangaIdRef.current, chNum, chId).catch((e) => console.error('[READER] updateProgress error:', e));
+    } else {
+      console.warn('[READER] mangaIdRef is null! Cannot mark as complete');
     }
   }
 
@@ -898,6 +914,8 @@ export default function ReaderScreen() {
             style={[styles.navIcon, !nextChapter && styles.navIconOff]}
             onPress={() => {
               if (!nextChapter) return;
+              // Mark current chapter as completed before moving
+              completeChapter(activeChapterIdRef.current, activeChapterNumberRef.current);
               const nextIdx = flatData.findIndex((item) => item.type === 'page' && (item as PageItem).chapterId === nextChapter.id);
               if (nextIdx !== -1) {
                 if (readingMode === 'scroll') scrollListRef.current?.scrollToIndex({ index: nextIdx, animated: true });
