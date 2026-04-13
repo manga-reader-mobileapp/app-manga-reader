@@ -36,6 +36,7 @@ const MAPPING = {
   'checkmark': 'check',
   'folder.fill': 'folder',
   'gearshape.fill': 'settings',
+  'line.3.horizontal.decrease': 'filter-list',
   'clock.fill': 'history',
   'ellipsis': 'more-horiz',
 } as IconMapping;

@@ -286,6 +286,9 @@ export async function markChapterRead(
 
   data[id] = entry;
   await saveAll(data);
+
+  data[id] = entry;
+  await saveAll(data);
 }
 
 /** Mark multiple chapters as read */

@@ -13,7 +13,7 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { resumeQueue } from '@/services/downloads';
 import { setupNotifications } from '@/services/updater';
-import { checkAppUpdate, downloadUpdate, getCurrentVersion, type UpdateInfo } from '@/services/app-update';
+import { checkAppUpdate, downloadUpdate, dismissUpdate, getCurrentVersion, type UpdateInfo } from '@/services/app-update';
 
 type MainTab = 'library' | 'history' | 'downloads' | 'scans' | 'settings';
 
@@ -164,7 +164,7 @@ export default function MainScreen() {
             ) : null}
             <ThemedText style={styles.modalCurrent}>Versão atual: v{getCurrentVersion()}</ThemedText>
             <View style={styles.modalActions}>
-              <Pressable style={styles.modalBtnSecondary} onPress={() => setShowUpdateModal(false)}>
+              <Pressable style={styles.modalBtnSecondary} onPress={() => { if (updateInfo) dismissUpdate(updateInfo.version); setShowUpdateModal(false); }}>
                 <ThemedText style={styles.modalBtnSecondaryText}>Depois</ThemedText>
               </Pressable>
               <Pressable

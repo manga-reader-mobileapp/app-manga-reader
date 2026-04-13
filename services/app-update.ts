@@ -1,7 +1,9 @@
-import { Linking, Platform } from 'react-native';
+import { Linking } from 'react-native';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const UPDATE_URL = 'https://raw.githubusercontent.com/manga-reader-mobileapp/app-manga-reader/main/update.json';
+const DISMISSED_KEY = 'mangaVerse_update_dismissed';
 
 export interface UpdateInfo {
   version: string;
@@ -14,8 +16,8 @@ export function getCurrentVersion(): string {
   return Constants.expoConfig?.version || '1.0.0';
 }
 
-/** Check if a new version is available */
-export async function checkAppUpdate(): Promise<UpdateInfo | null> {
+/** Check if a new version is available (respects dismissed version on auto-check) */
+export async function checkAppUpdate(force = false): Promise<UpdateInfo | null> {
   try {
     const res = await fetch(UPDATE_URL, {
       headers: { 'Cache-Control': 'no-cache' },
@@ -26,6 +28,11 @@ export async function checkAppUpdate(): Promise<UpdateInfo | null> {
     const current = getCurrentVersion();
 
     if (isNewerVersion(data.version, current)) {
+      // If not forced (auto-check), skip if user already dismissed this version
+      if (!force) {
+        const dismissed = await AsyncStorage.getItem(DISMISSED_KEY);
+        if (dismissed === data.version) return null;
+      }
       return data;
     }
     return null;
@@ -33,6 +40,11 @@ export async function checkAppUpdate(): Promise<UpdateInfo | null> {
     console.warn('[APP_UPDATE] Check failed:', err);
     return null;
   }
+}
+
+/** Mark a version as dismissed (user clicked "Depois") */
+export async function dismissUpdate(version: string): Promise<void> {
+  await AsyncStorage.setItem(DISMISSED_KEY, version);
 }
 
 /** Open the APK download URL in the browser */

@@ -468,12 +468,9 @@ export default function ReaderScreen() {
   function completeChapter(chId: number, chNum: string) {
     if (completedRef.current.has(chId)) return;
     completedRef.current.add(chId);
-    console.log('[READER] Completing chapter', chNum, 'id:', chId, 'mangaId:', mangaIdRef.current);
     if (mangaIdRef.current) {
-      markChapterRead('nexus', mangaIdRef.current, chId).catch((e) => console.error('[READER] markRead error:', e));
-      updateReadProgress('nexus', mangaIdRef.current, chNum, chId).catch((e) => console.error('[READER] updateProgress error:', e));
-    } else {
-      console.warn('[READER] mangaIdRef is null! Cannot mark as complete');
+      markChapterRead('nexus', mangaIdRef.current, chId).catch(() => {});
+      updateReadProgress('nexus', mangaIdRef.current, chNum, chId).catch(() => {});
     }
   }
 

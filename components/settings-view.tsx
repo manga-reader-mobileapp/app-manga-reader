@@ -26,7 +26,7 @@ export function SettingsView({ topInset = 0, onUpdateFound }: SettingsViewProps)
   async function handleCheckUpdate() {
     setChecking(true);
     try {
-      const info = await checkAppUpdate();
+      const info = await checkAppUpdate(true);
       if (info) {
         onUpdateFound?.(info);
       } else {

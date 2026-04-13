@@ -98,7 +98,9 @@ export default function MangaDetailScreen() {
   // Reload progress every time screen gets focus (returning from reader)
   useFocusEffect(
     useCallback(() => {
-      if (mangaId) {
+      if (!mangaId) return;
+      // Small delay to ensure AsyncStorage writes from the reader are flushed
+      const timer = setTimeout(() => {
         getReadProgress('nexus', mangaId).then((progress) => {
           if (progress) {
             setLastRead(progress.chapter);
@@ -108,17 +110,17 @@ export default function MangaDetailScreen() {
         });
         getChapterPagesProgress('nexus', mangaId).then(setChapterPagesMap);
         getReadChapterIds('nexus', mangaId).then(setReadIds);
-        // Also refresh downloaded status
-        async function refreshDownloads() {
+        // Refresh downloaded status
+        (async () => {
           const ids = new Set<number>();
           for (const ch of chapters) {
             const done = await isChapterDownloaded('nexus', mangaId, ch.id);
             if (done) ids.add(ch.id);
           }
           setDownloadedIds(ids);
-        }
-        refreshDownloads();
-      }
+        })();
+      }, 300);
+      return () => clearTimeout(timer);
     }, [mangaId, chapters]),
   );
 

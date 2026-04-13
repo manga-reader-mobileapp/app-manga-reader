@@ -11,6 +11,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -76,6 +77,15 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
   const [pickerCategory, setPickerCategory] = useState<string | null>(null);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [filterTab, setFilterTab] = useState<'filter' | 'sort' | 'display'>('filter');
+  // Search
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  // Filters
+  const [filterUnread, setFilterUnread] = useState(false);
+  const [filterStarted, setFilterStarted] = useState(false);
+  const [filterCompleted, setFilterCompleted] = useState(false);
 
   const drawerTranslate = useSharedValue(W);
 
@@ -123,13 +133,38 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
     setCategories_(cats);
   }
 
-  // Filter mangas by active category
+  function getUnreadCount(manga: LibraryManga): number {
+    const readCount = manga.readChapterIds?.length || 0;
+    return Math.max(0, manga.totalChapters - readCount);
+  }
+
+  // Filter mangas by active category + search + filters
   const mangas = allMangas.filter((m) => {
+    // Category filter
     if (activeCategory === null) {
-      return !m.userCategory; // "Padrão" = uncategorized
+      if (m.userCategory) return false;
+    } else {
+      if (m.userCategory !== activeCategory) return false;
     }
-    return m.userCategory === activeCategory;
+    // Search filter
+    if (searchQuery) {
+      if (!m.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    }
+    // Checkbox filters
+    const readCount = m.readChapterIds?.length || 0;
+    if (filterUnread && readCount > 0) return false;
+    if (filterStarted && readCount === 0) return false;
+    if (filterCompleted && getUnreadCount(m) > 0) return false;
+    return true;
   });
+
+  // Count per category (for tab badges)
+  function countForCategory(cat: string | null): number {
+    return allMangas.filter((m) => {
+      if (cat === null) return !m.userCategory;
+      return m.userCategory === cat;
+    }).length;
+  }
 
   const allTabs = [null, ...categories]; // null = "Padrão"
   const pagerRef = useRef<PagerView>(null);
@@ -171,11 +206,6 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
     } finally {
       setUpdating(false);
     }
-  }
-
-  function getUnreadCount(manga: LibraryManga): number {
-    const readCount = manga.readChapterIds?.length || 0;
-    return Math.max(0, manga.totalChapters - readCount);
   }
 
   // Selection
@@ -279,15 +309,42 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
     <View style={styles.container}>
       {/* ========== HEADER ========== */}
       {showHeader && !selectionMode && (
-        <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-          <ThemedText style={styles.title}>Biblioteca</ThemedText>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {updating && <ActivityIndicator size={18} color={Colors.dark.primary} style={{ marginRight: 4 }} />}
-            <Pressable style={styles.headerBtn} onPress={() => setShowHeaderMenu((v) => !v)}>
-              <IconSymbol name="server.rack" size={18} color={Colors.dark.primaryLight} />
+        searchMode ? (
+          <View style={[styles.searchBar, { paddingTop: topInset + 12 }]}>
+            <Pressable onPress={() => { setSearchMode(false); setSearchQuery(''); }}>
+              <IconSymbol name="xmark" size={18} color={Colors.dark.text} />
             </Pressable>
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Pesquisar na biblioteca..."
+              placeholderTextColor={Colors.dark.textMuted}
+              autoFocus
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <IconSymbol name="xmark" size={16} color={Colors.dark.textMuted} />
+              </Pressable>
+            )}
           </View>
-        </View>
+        ) : (
+          <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+            <ThemedText style={styles.title}>Biblioteca</ThemedText>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              {updating && <ActivityIndicator size={18} color={Colors.dark.primary} />}
+              <Pressable style={styles.headerBtn} onPress={() => setSearchMode(true)}>
+                <IconSymbol name="magnifyingglass" size={18} color={Colors.dark.primaryLight} />
+              </Pressable>
+              <Pressable style={styles.headerBtn} onPress={() => setShowFilterSheet(true)}>
+                <IconSymbol name="line.3.horizontal.decrease" size={18} color={Colors.dark.primaryLight} />
+              </Pressable>
+              <Pressable style={styles.headerBtn} onPress={() => setShowHeaderMenu((v) => !v)}>
+                <IconSymbol name="ellipsis" size={18} color={Colors.dark.primaryLight} />
+              </Pressable>
+            </View>
+          </View>
+        )
       )}
       {/* Header popover menu */}
       {showHeaderMenu && (
@@ -299,11 +356,6 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
               <ThemedText style={styles.popoverText}>
                 Atualizar "{activeCategory || 'Padrão'}"
               </ThemedText>
-            </Pressable>
-            <View style={styles.popoverDivider} />
-            <Pressable style={styles.popoverItem} onPress={() => { setShowHeaderMenu(false); setShowDrawer(true); }}>
-              <IconSymbol name="server.rack" size={16} color={Colors.dark.primaryLight} />
-              <ThemedText style={styles.popoverText}>Configurações da grade</ThemedText>
             </Pressable>
           </View>
         </>
@@ -348,6 +400,11 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
                 <ThemedText style={[styles.tabText, isActive && styles.tabTextActive]}>
                   {label}
                 </ThemedText>
+                <View style={[styles.tabBadge, isActive && styles.tabBadgeActive]}>
+                  <ThemedText style={[styles.tabBadgeText, isActive && styles.tabBadgeTextActive]}>
+                    {countForCategory(cat)}
+                  </ThemedText>
+                </View>
               </Pressable>
             );
           })}
@@ -357,6 +414,7 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
       {/* ========== CONTENT ========== */}
       {allTabs.length > 1 ? (
         <PagerView
+          key={`pager-${searchQuery}-${filterUnread}-${filterStarted}-${filterCompleted}-${grid}`}
           ref={pagerRef}
           style={{ flex: 1 }}
           initialPage={activeTabIdx >= 0 ? activeTabIdx : 0}
@@ -371,8 +429,14 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
         >
           {allTabs.map((cat) => {
             const catMangas = allMangas.filter((m) => {
-              if (cat === null) return !m.userCategory;
-              return m.userCategory === cat;
+              if (cat === null) { if (m.userCategory) return false; }
+              else { if (m.userCategory !== cat) return false; }
+              if (searchQuery && !m.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+              const readCount = m.readChapterIds?.length || 0;
+              if (filterUnread && readCount > 0) return false;
+              if (filterStarted && readCount === 0) return false;
+              if (filterCompleted && getUnreadCount(m) > 0) return false;
+              return true;
             });
             const label = cat || 'Padrão';
             return (
@@ -512,63 +576,76 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
         </>
       )}
 
-      {/* ========== SETTINGS DRAWER ========== */}
-      {showDrawer && (
-        <Pressable style={styles.drawerOverlay} onPress={() => setShowDrawer(false)} />
+      {/* ========== FILTER BOTTOM SHEET ========== */}
+      {showFilterSheet && (
+        <>
+          <Pressable style={styles.sheetOverlay} onPress={() => setShowFilterSheet(false)} />
+          <View style={styles.bottomSheet}>
+            {/* Tabs */}
+            <View style={styles.sheetTabs}>
+              {(['filter', 'sort', 'display'] as const).map((t) => (
+                <Pressable key={t} style={[styles.sheetTab, filterTab === t && styles.sheetTabActive]} onPress={() => setFilterTab(t)}>
+                  <ThemedText style={[styles.sheetTabText, filterTab === t && styles.sheetTabTextActive]}>
+                    {t === 'filter' ? 'Filtrar' : t === 'sort' ? 'Ordenar' : 'Visualizar'}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Filter tab */}
+            {filterTab === 'filter' && (
+              <View style={styles.sheetContent}>
+                {[
+                  { label: 'Não lido', value: filterUnread, set: setFilterUnread },
+                  { label: 'Iniciados', value: filterStarted, set: setFilterStarted },
+                  { label: 'Concluído', value: filterCompleted, set: setFilterCompleted },
+                ].map((f) => (
+                  <Pressable key={f.label} style={styles.filterRow} onPress={() => f.set(!f.value)}>
+                    <View style={[styles.filterCheck, f.value && styles.filterCheckActive]}>
+                      {f.value && <IconSymbol name="checkmark" size={14} color="#fff" />}
+                    </View>
+                    <ThemedText style={styles.filterLabel}>{f.label}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Sort tab */}
+            {filterTab === 'sort' && (
+              <View style={styles.sheetContent}>
+                {SORT_OPTIONS.map((opt) => (
+                  <Pressable key={opt.value} style={styles.filterRow} onPress={() => changeSort(opt.value)}>
+                    <View style={[styles.filterCheck, sortBy === opt.value && styles.filterCheckActive]}>
+                      {sortBy === opt.value && <IconSymbol name="checkmark" size={14} color="#fff" />}
+                    </View>
+                    <ThemedText style={styles.filterLabel}>{opt.label}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Display tab */}
+            {filterTab === 'display' && (
+              <View style={styles.sheetContent}>
+                <ThemedText style={styles.sheetSectionLabel}>Grade</ThemedText>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {GRID_OPTIONS.map((size) => (
+                    <Pressable
+                      key={size}
+                      style={[styles.optionBtn, grid === size && styles.optionBtnActive]}
+                      onPress={() => changeGrid(size)}
+                    >
+                      <ThemedText style={[styles.optionText, grid === size && styles.optionTextActive]}>
+                        {size}x
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        </>
       )}
-      <Animated.View style={[styles.drawer, drawerStyle, { paddingTop: topInset + 16 }]}>
-        <View style={styles.drawerHeader}>
-          <ThemedText style={styles.drawerTitle}>Configurações</ThemedText>
-          <Pressable onPress={() => setShowDrawer(false)}>
-            <ThemedText style={styles.drawerClose}>✕</ThemedText>
-          </Pressable>
-        </View>
-
-        <View style={styles.drawerSection}>
-          <ThemedText style={styles.drawerLabel}>Grade</ThemedText>
-          <View style={styles.drawerOptions}>
-            {GRID_OPTIONS.map((size) => (
-              <Pressable
-                key={size}
-                style={[styles.optionBtn, grid === size && styles.optionBtnActive]}
-                onPress={() => changeGrid(size)}
-              >
-                <ThemedText style={[styles.optionText, grid === size && styles.optionTextActive]}>
-                  {size}x
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.drawerSection}>
-          <ThemedText style={styles.drawerLabel}>Ordenar por</ThemedText>
-          <View style={styles.sortList}>
-            {SORT_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt.value}
-                style={[styles.sortItem, sortBy === opt.value && styles.sortItemActive]}
-                onPress={() => changeSort(opt.value)}
-              >
-                <ThemedText style={[styles.sortItemText, sortBy === opt.value && styles.sortItemTextActive]}>
-                  {opt.label}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <Pressable
-          style={styles.redownloadBtn}
-          onPress={handleRedownload}
-          disabled={redownloading}
-        >
-          <IconSymbol name="globe" size={16} color={redownloading ? Colors.dark.textMuted : Colors.dark.primaryLight} />
-          <ThemedText style={[styles.redownloadText, redownloading && { color: Colors.dark.textMuted }]}>
-            {redownloading ? 'Baixando...' : 'Regerar imagens'}
-          </ThemedText>
-        </Pressable>
-      </Animated.View>
     </View>
   );
 }
@@ -593,7 +670,7 @@ const styles = StyleSheet.create({
 
   // Category tabs
   tabsRow: { paddingHorizontal: PAD, gap: 0, marginBottom: 4 },
-  tab: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: Colors.dark.primary },
   tabText: { fontSize: 14, fontWeight: '600', color: Colors.dark.textMuted },
   tabTextActive: { color: Colors.dark.text },
@@ -650,4 +727,31 @@ const styles = StyleSheet.create({
   sortItemTextActive: { color: Colors.dark.primaryLight },
   redownloadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.dark.surfaceLight, borderWidth: 1, borderColor: Colors.dark.border },
   redownloadText: { fontSize: 14, fontWeight: '600', color: Colors.dark.primaryLight },
+
+  // Search bar
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: PAD, paddingBottom: 8 },
+  searchInput: { flex: 1, fontSize: 16, color: Colors.dark.text, paddingVertical: 4 },
+
+  // Tab badges
+  tabBadge: { backgroundColor: Colors.dark.surfaceLight, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, marginLeft: 4 },
+  tabBadgeActive: { backgroundColor: Colors.dark.primary + '30' },
+  tabBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.dark.textMuted },
+  tabBadgeTextActive: { color: Colors.dark.primaryLight },
+
+  // Bottom sheet
+  sheetOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20 },
+  bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.dark.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, zIndex: 21, paddingBottom: 40 },
+  sheetTabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.dark.border },
+  sheetTab: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  sheetTabActive: { borderBottomColor: Colors.dark.primary },
+  sheetTabText: { fontSize: 14, fontWeight: '600', color: Colors.dark.textMuted },
+  sheetTabTextActive: { color: Colors.dark.text },
+  sheetContent: { padding: 20 },
+  sheetSectionLabel: { fontSize: 13, fontWeight: '700', color: Colors.dark.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+
+  // Filter rows
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
+  filterCheck: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: Colors.dark.textMuted, justifyContent: 'center', alignItems: 'center' },
+  filterCheckActive: { backgroundColor: Colors.dark.primary, borderColor: Colors.dark.primary },
+  filterLabel: { fontSize: 15, color: Colors.dark.text },
 });
