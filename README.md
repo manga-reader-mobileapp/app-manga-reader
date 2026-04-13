@@ -1,50 +1,156 @@
-# Welcome to your Expo app 👋
+# MangaVerse
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Leitor de mangás agregador para Android. Reúne múltiplas fontes de mangás/manhwas em um único app com leitura offline, biblioteca organizada e notificações de novos capítulos.
 
-## Get started
+Inspirado no Tachiyomi, construído do zero com React Native + Expo.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Funcionalidades
 
-2. Start the app
+### Leitura
+- Leitor com modo **scroll** (webtoon) e modo **página**
+- Leitura infinita entre capítulos (configurável)
+- Slider de progresso com navegação entre capítulos
+- Cache de dimensões de imagem pra evitar saltos no scroll
+- Placeholder com retry/re-download pra páginas que falharam
 
-   ```bash
-   npx expo start
-   ```
+### Biblioteca
+- Favoritar mangás com capa salva localmente
+- Categorias personalizáveis (criar, renomear, reordenar, deletar)
+- Swipe entre categorias
+- Grid configurável (2x, 4x, 6x colunas)
+- Seleção em massa com ações: mover categoria, desfavoritar
+- Badge de capítulos não lidos
 
-In the output, you'll find options to open the app in a
+### Downloads
+- Fila de download persistente (sobrevive ao fechar o app)
+- Resume automático de downloads interrompidos
+- 3 tentativas por página com timeout de 15s
+- Leitor offline pra capítulos baixados
+- Re-download de página individual direto no leitor
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Progresso
+- Leitura individual por capítulo (cada cap tem seu próprio estado)
+- Marcar como lido / não lido em massa
+- "Marcar todos abaixo como lido"
+- Capítulos lidos ficam esmaecidos na listagem
+- Histórico de leitura agrupado por dia
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Página do mangá
+- Funciona offline com dados em cache
+- Menu com "Baixar tudo" e "Marcar tudo como lido"
+- Seleção em massa de capítulos
+- Indicador de download/fila por capítulo
 
-## Get a fresh project
+### Atualizações
+- Verificação automática de novos capítulos em background
+- Notificação push quando tem capítulo novo
+- Configurável por categoria e intervalo (6h, 12h, diário, semanal)
+- Auto-update do app via GitHub Releases
 
-When you're ready, run:
+### Fontes
+| Fonte | Idioma | Status |
+|-------|--------|--------|
+| NEXUS Mangás | PT-BR | Ativo |
+| MangaDex | Multi | Planejado |
+| MangaLivre | PT-BR | Planejado |
 
+---
+
+## Stack
+
+- **React Native** + **Expo** (SDK 53)
+- **Expo Router** (file-based routing)
+- **expo-image** / **expo-file-system** / **expo-notifications**
+- **expo-background-fetch** + **expo-task-manager**
+- **react-native-pager-view**
+- **react-native-reanimated**
+- **AsyncStorage**
+
+---
+
+## Rodando
+
+### Dev (Expo Go)
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Build APK
+```bash
+npx expo prebuild --platform android
+cd android && ./gradlew assembleRelease
+```
 
-## Learn more
+APK em `android/app/build/outputs/apk/release/app-release.apk`
 
-To learn more about developing your project with Expo, look at the following resources:
+**Requisitos:** Node 18+, Android SDK (API 34+), JDK 17
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## Estrutura
 
-Join our community of developers creating universal apps.
+```
+app/
+  index.tsx                # Home (biblioteca, histórico, downloads, navegar, config)
+  manga/[slug].tsx         # Detalhes do mangá
+  reader/[chapterId].tsx   # Leitor
+  categories.tsx           # Gerenciamento de categorias
+  update-settings.tsx      # Config de atualizações automáticas
+  downloads/[mangaId].tsx  # Capítulos baixados
+  (tabs)/                  # Navegação dentro de uma scan
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+services/
+  nexus/                   # Fonte NEXUS (API + crypto)
+  library.ts               # Biblioteca local
+  downloads.ts             # Fila de downloads
+  categories.ts            # Categorias
+  history.ts               # Histórico de leitura
+  updater.ts               # Background fetch + notificações
+  app-update.ts            # Auto-update via GitHub
+```
+
+---
+
+## Auto-update
+
+O app checa por versões novas ao abrir. O controle é pelo `update.json` na raiz:
+
+```json
+{
+  "version": "1.0.1",
+  "url": "https://github.com/.../releases/download/v1.0.1/app-release.apk",
+  "changelog": "Descrição"
+}
+```
+
+Pra lançar versão nova: atualizar `app.json` + buildar + criar Release no GitHub + atualizar `update.json`.
+
+---
+
+## Adicionando fontes
+
+Cada fonte implementa:
+- `getPopularMangas()` / `getRecentMangas()` / `searchMangas()`
+- `getMangaBySlug(slug)`
+- `getChapterPages(chapterId)`
+
+---
+
+## Roadmap
+
+- [ ] MangaDex
+- [ ] MangaLivre
+- [ ] Restaurar posição de scroll ao retomar leitura
+- [ ] Estatísticas de leitura
+- [ ] Backup/restore de dados
+- [ ] Tema claro
+- [ ] Busca global entre fontes
+
+---
+
+## Licença
+
+MIT
