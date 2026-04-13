@@ -1,12 +1,15 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { checkAppUpdate, getCurrentVersion, type UpdateInfo } from '@/services/app-update';
 
 interface SettingsViewProps {
   topInset?: number;
+  onUpdateFound?: (info: UpdateInfo) => void;
 }
 
 const MENU_ITEMS = [
@@ -16,8 +19,25 @@ const MENU_ITEMS = [
   { icon: 'square.and.arrow.down' as const, label: 'Dados e armazenamento', route: null },
 ];
 
-export function SettingsView({ topInset = 0 }: SettingsViewProps) {
+export function SettingsView({ topInset = 0, onUpdateFound }: SettingsViewProps) {
   const router = useRouter();
+  const [checking, setChecking] = useState(false);
+
+  async function handleCheckUpdate() {
+    setChecking(true);
+    try {
+      const info = await checkAppUpdate();
+      if (info) {
+        onUpdateFound?.(info);
+      } else {
+        Alert.alert('Atualizado', 'Você já está na versão mais recente.');
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível verificar atualizações.');
+    } finally {
+      setChecking(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -45,11 +65,23 @@ export function SettingsView({ topInset = 0 }: SettingsViewProps) {
             </ThemedText>
           </Pressable>
         ))}
+
+        {/* Check for updates */}
+        <Pressable style={styles.menuItem} onPress={handleCheckUpdate} disabled={checking}>
+          {checking ? (
+            <ActivityIndicator size={20} color={Colors.dark.primaryLight} />
+          ) : (
+            <IconSymbol name="arrow.down.circle.fill" size={22} color={Colors.dark.primaryLight} />
+          )}
+          <ThemedText style={styles.menuLabel}>
+            {checking ? 'Verificando...' : 'Verificar atualização'}
+          </ThemedText>
+        </Pressable>
       </View>
 
       <View style={styles.footer}>
         <ThemedText style={styles.appName}>MangaVerse</ThemedText>
-        <ThemedText style={styles.version}>v1.0.0</ThemedText>
+        <ThemedText style={styles.version}>v{getCurrentVersion()}</ThemedText>
       </View>
     </View>
   );

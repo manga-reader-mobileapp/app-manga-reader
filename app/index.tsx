@@ -85,7 +85,7 @@ export default function MainScreen() {
       {activeTab === 'library' && <LibraryView topInset={0} showHeader={true} />}
       {activeTab === 'history' && <HistoryView topInset={0} />}
       {activeTab === 'downloads' && <DownloadsView topInset={0} showHeader={true} />}
-      {activeTab === 'settings' && <SettingsView topInset={0} />}
+      {activeTab === 'settings' && <SettingsView topInset={0} onUpdateFound={(info) => { setUpdateInfo(info); setShowUpdateModal(true); }} />}
 
       {activeTab === 'scans' && (
         <View style={styles.scansContent}>
