@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PagerView from 'react-native-pager-view';
@@ -275,7 +275,7 @@ export function LibraryView({ topInset = 0, showHeader = true }: LibraryViewProp
       >
         <View style={styles.coverWrap}>
           {cover ? (
-            <Image source={cover} style={styles.cover} resizeMode="cover" />
+            <Image source={cover} style={styles.cover} contentFit="cover" />
           ) : (
             <View style={[styles.cover, styles.placeholder]}>
               <IconSymbol name="book.fill" size={grid <= 2 ? 32 : 20} color={Colors.dark.textMuted} />

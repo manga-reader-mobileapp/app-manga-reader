@@ -1,4 +1,4 @@
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -187,7 +187,7 @@ export default function ExploreScreen() {
     return (
       <Pressable style={styles.card} onPress={() => router.push(`/manga/${item.slug}`)}>
         {item.coverImage ? (
-          <Image source={{ uri: item.coverImage }} style={styles.cardCover} resizeMode="cover" />
+          <Image source={{ uri: item.coverImage }} style={styles.cardCover} contentFit="cover" />
         ) : (
           <View style={[styles.cardCover, styles.placeholder]}>
             <IconSymbol name="book.fill" size={24} color={Colors.dark.textMuted} />

@@ -1,4 +1,4 @@
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -119,7 +119,7 @@ export function HistoryView({ topInset = 0 }: HistoryViewProps) {
             >
               <View style={styles.coverWrap}>
                 {item.coverUrl ? (
-                  <Image source={{ uri: item.coverUrl }} style={styles.cover} resizeMode="cover" />
+                  <Image source={{ uri: item.coverUrl }} style={styles.cover} contentFit="cover" />
                 ) : (
                   <View style={[styles.cover, styles.coverPlaceholder]}>
                     <IconSymbol name="book.fill" size={16} color={Colors.dark.textMuted} />

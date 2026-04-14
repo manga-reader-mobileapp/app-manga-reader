@@ -1,4 +1,4 @@
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -159,10 +159,10 @@ function AutoImage({ uri, fitWidth, pageNumber, onRedownload }: AutoImageProps) 
       key={retryKey}
       source={{ uri: currentUri }}
       style={{ width: fitWidth, height }}
-      resizeMode="stretch"
+      contentFit="contain"
      
       onLoad={(e) => {
-        const { width: w, height: h } = e.nativeEvent.source;
+        const { width: w, height: h } = e.source;
         if (w && h && !heightLocked.current) {
           const newHeight = fitWidth * (h / w);
           _imageSizeCache[uri] = newHeight;

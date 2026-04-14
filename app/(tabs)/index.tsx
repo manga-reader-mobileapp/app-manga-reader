@@ -1,4 +1,4 @@
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -205,7 +205,7 @@ export default function HomeScreen() {
               searchResults.map((manga) => (
                 <Pressable key={manga.id} style={styles.listItem} onPress={() => openManga(manga.slug)}>
                   {manga.coverImage ? (
-                    <Image source={{ uri: manga.coverImage }} style={styles.listCover} resizeMode="cover" />
+                    <Image source={{ uri: manga.coverImage }} style={styles.listCover} contentFit="cover" />
                   ) : (
                     <View style={[styles.listCover, styles.coverPlaceholder]}>
                       <IconSymbol name="book.fill" size={20} color={Colors.dark.textMuted} />
@@ -240,7 +240,7 @@ export default function HomeScreen() {
               {popular.map((manga) => (
                 <Pressable key={manga.id} style={styles.trendingCard} onPress={() => openManga(manga.slug)}>
                   {manga.coverImage ? (
-                    <Image source={{ uri: manga.coverImage }} style={styles.trendingCover} resizeMode="cover" />
+                    <Image source={{ uri: manga.coverImage }} style={styles.trendingCover} contentFit="cover" />
                   ) : (
                     <View style={[styles.trendingCover, styles.coverPlaceholder]}>
                       <IconSymbol name="book.fill" size={28} color={Colors.dark.textMuted} />
@@ -275,7 +275,7 @@ export default function HomeScreen() {
             {listData.map((manga) => (
               <Pressable key={manga.id} style={styles.listItem} onPress={() => openManga(manga.slug)}>
                 {manga.coverImage ? (
-                  <Image source={{ uri: manga.coverImage }} style={styles.listCover} resizeMode="cover" />
+                  <Image source={{ uri: manga.coverImage }} style={styles.listCover} contentFit="cover" />
                 ) : (
                   <View style={[styles.listCover, styles.coverPlaceholder]}>
                     <IconSymbol name="book.fill" size={20} color={Colors.dark.textMuted} />

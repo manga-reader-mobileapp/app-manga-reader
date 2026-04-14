@@ -104,7 +104,7 @@ export default function MainScreen() {
               >
                 <View style={styles.sourceLogoWrap}>
                   {source.logo ? (
-                    <Image source={source.logo} style={styles.sourceLogo} resizeMode="cover" />
+                    <Image source={source.logo} style={styles.sourceLogo} contentFit="cover" />
                   ) : (
                     <IconSymbol name="globe" size={22} color={Colors.dark.textMuted} />
                   )}

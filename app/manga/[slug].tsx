@@ -1,4 +1,4 @@
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -533,7 +533,7 @@ export default function MangaDetailScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           {cover && (
-            <Image source={{ uri: cover }} style={styles.heroBg} resizeMode="cover" blurRadius={20} />
+            <Image source={{ uri: cover }} style={styles.heroBg} contentFit="cover" blurRadius={20} />
           )}
           <View style={styles.heroBgOverlay} />
 
@@ -572,7 +572,7 @@ export default function MangaDetailScreen() {
 
           <View style={styles.coverContainer}>
             {cover ? (
-              <Image source={{ uri: cover }} style={styles.coverImage} resizeMode="cover" />
+              <Image source={{ uri: cover }} style={styles.coverImage} contentFit="cover" />
             ) : (
               <View style={[styles.coverImage, styles.coverPlaceholder]}>
                 <IconSymbol name="book.fill" size={48} color={Colors.dark.textMuted} />

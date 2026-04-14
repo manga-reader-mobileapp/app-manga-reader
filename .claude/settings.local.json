@@ -54,7 +54,8 @@
       "Bash(rm -rf node_modules)",
       "Bash(rm -f yarn.lock)",
       "Bash(npm install:*)",
-      "Bash(find app:*)"
+      "Bash(find app:*)",
+      "Bash(xargs grep:*)"
     ],
     "additionalDirectories": [
       "C:\\dev\\yomuverse"
