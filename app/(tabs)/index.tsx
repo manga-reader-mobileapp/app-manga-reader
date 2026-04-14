@@ -1,6 +1,7 @@
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,28 +17,80 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getPopularMangas, getRecentMangas, searchMangas } from '@/services/nexus/api';
 import type { NexusManga } from '@/services/nexus/types';
+import * as MangaLivreApi from '@/services/mangalivre/api';
+import { getActiveSource } from '@/services/source-context';
 
 type ScanTab = 'recent' | 'popular';
+
+// Generic manga item for display (works with both sources)
+interface DisplayManga {
+  id: string;
+  slug: string;
+  title: string;
+  coverImage: string | null;
+  chapterCount: number;
+  views: number;
+  lastChapterAt: string;
+  source: string;
+}
+
+function nexusToDisplay(m: NexusManga): DisplayManga {
+  return {
+    id: String(m.id),
+    slug: m.slug,
+    title: m.title,
+    coverImage: m.coverImage,
+    chapterCount: m.chapterCount,
+    views: m.views,
+    lastChapterAt: m.lastChapterAt || m.updatedAt,
+    source: 'nexus',
+  };
+}
+
+function mlToDisplay(m: { slug: string; title: string; coverUrl: string | null }): DisplayManga {
+  return {
+    id: m.slug,
+    slug: m.slug,
+    title: m.title,
+    coverImage: m.coverUrl,
+    chapterCount: 0,
+    views: 0,
+    lastChapterAt: '',
+    source: 'mangalivre',
+  };
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [popular, setPopular] = useState<NexusManga[]>([]);
-  const [recent, setRecent] = useState<NexusManga[]>([]);
+  const [popular, setPopular] = useState<DisplayManga[]>([]);
+  const [recent, setRecent] = useState<DisplayManga[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanTab, setScanTab] = useState<ScanTab>('recent');
+  const [source, setSource] = useState(getActiveSource());
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<NexusManga[]>([]);
+  const [searchResults, setSearchResults] = useState<DisplayManga[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchTotal, setSearchTotal] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSearchActive = searchQuery.length > 0;
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const lastSourceRef = useRef(getActiveSource());
+
+  useFocusEffect(
+    useCallback(() => {
+      const s = getActiveSource();
+      if (s !== lastSourceRef.current || popular.length === 0) {
+        lastSourceRef.current = s;
+        setSource(s);
+        setPopular([]);
+        setRecent([]);
+        loadData(s);
+      }
+    }, []),
+  );
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -50,9 +103,15 @@ export default function HomeScreen() {
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await searchMangas(searchQuery, 20);
-        setSearchResults(res.data);
-        setSearchTotal(res.total);
+        if (source === 'mangalivre') {
+          const results = await MangaLivreApi.searchMangas(searchQuery);
+          setSearchResults(results.map(mlToDisplay));
+          setSearchTotal(results.length);
+        } else {
+          const res = await searchMangas(searchQuery, 20);
+          setSearchResults(res.data.map(nexusToDisplay));
+          setSearchTotal(res.total);
+        }
       } catch (err) {
         console.error('[SEARCH] ERROR:', err);
       } finally {
@@ -62,15 +121,25 @@ export default function HomeScreen() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [searchQuery]);
 
-  async function loadData() {
+  async function loadData(src?: string) {
+    const activeSource = src || source;
     try {
       setLoading(true);
-      const [popRes, recRes] = await Promise.all([
-        getPopularMangas(10),
-        getRecentMangas(20),
-      ]);
-      setPopular(popRes.data);
-      setRecent(recRes.data);
+      if (activeSource === 'mangalivre') {
+        const [popRes, recRes] = await Promise.all([
+          MangaLivreApi.getPopularMangas(),
+          MangaLivreApi.getRecentMangas(),
+        ]);
+        setPopular(popRes.map(mlToDisplay));
+        setRecent(recRes.map(mlToDisplay));
+      } else {
+        const [popRes, recRes] = await Promise.all([
+          getPopularMangas(10),
+          getRecentMangas(20),
+        ]);
+        setPopular(popRes.data.map(nexusToDisplay));
+        setRecent(recRes.data.map(nexusToDisplay));
+      }
     } catch (err) {
       console.error('[HOME] ERROR:', err);
     } finally {
@@ -136,7 +205,7 @@ export default function HomeScreen() {
               searchResults.map((manga) => (
                 <Pressable key={manga.id} style={styles.listItem} onPress={() => openManga(manga.slug)}>
                   {manga.coverImage ? (
-                    <Image source={{ uri: manga.coverImage }} style={styles.listCover} contentFit="cover" transition={200} />
+                    <Image source={{ uri: manga.coverImage }} style={styles.listCover} resizeMode="cover" />
                   ) : (
                     <View style={[styles.listCover, styles.coverPlaceholder]}>
                       <IconSymbol name="book.fill" size={20} color={Colors.dark.textMuted} />
@@ -144,14 +213,9 @@ export default function HomeScreen() {
                   )}
                   <View style={styles.listInfo}>
                     <ThemedText style={styles.listTitle} numberOfLines={1}>{manga.title}</ThemedText>
-                    <ThemedText style={styles.listSub}>Cap. {manga.chapters?.[0]?.number ?? manga.chapterCount}</ThemedText>
-                    <View style={styles.tagRow}>
-                      {manga.categories?.slice(0, 3).map((c) => (
-                        <View key={c.id} style={styles.tag}>
-                          <ThemedText style={styles.tagText}>{c.category?.name ?? ''}</ThemedText>
-                        </View>
-                      ))}
-                    </View>
+                    {manga.chapterCount > 0 && (
+                      <ThemedText style={styles.listSub}>Cap. {manga.chapterCount}</ThemedText>
+                    )}
                   </View>
                 </Pressable>
               ))
@@ -176,7 +240,7 @@ export default function HomeScreen() {
               {popular.map((manga) => (
                 <Pressable key={manga.id} style={styles.trendingCard} onPress={() => openManga(manga.slug)}>
                   {manga.coverImage ? (
-                    <Image source={{ uri: manga.coverImage }} style={styles.trendingCover} contentFit="cover" transition={200} />
+                    <Image source={{ uri: manga.coverImage }} style={styles.trendingCover} resizeMode="cover" />
                   ) : (
                     <View style={[styles.trendingCover, styles.coverPlaceholder]}>
                       <IconSymbol name="book.fill" size={28} color={Colors.dark.textMuted} />
@@ -184,7 +248,7 @@ export default function HomeScreen() {
                   )}
                   <ThemedText style={styles.trendingTitle} numberOfLines={1}>{manga.title}</ThemedText>
                   <ThemedText style={styles.trendingAuthor} numberOfLines={1}>
-                    {manga.author || manga.type}
+                    {manga.source === 'mangalivre' ? 'MangaLivre' : 'NEXUS'}
                   </ThemedText>
                 </Pressable>
               ))}
@@ -211,7 +275,7 @@ export default function HomeScreen() {
             {listData.map((manga) => (
               <Pressable key={manga.id} style={styles.listItem} onPress={() => openManga(manga.slug)}>
                 {manga.coverImage ? (
-                  <Image source={{ uri: manga.coverImage }} style={styles.listCover} contentFit="cover" transition={200} />
+                  <Image source={{ uri: manga.coverImage }} style={styles.listCover} resizeMode="cover" />
                 ) : (
                   <View style={[styles.listCover, styles.coverPlaceholder]}>
                     <IconSymbol name="book.fill" size={20} color={Colors.dark.textMuted} />
@@ -221,15 +285,8 @@ export default function HomeScreen() {
                   <ThemedText style={styles.listTitle} numberOfLines={1}>{manga.title}</ThemedText>
                   <ThemedText style={styles.moreChapter}>More Chapter</ThemedText>
                   <ThemedText style={styles.listTime}>
-                    {manga.lastChapterAt ? timeAgo(manga.lastChapterAt) : `Cap. ${manga.chapterCount}`}
+                    {manga.lastChapterAt ? timeAgo(manga.lastChapterAt) : manga.chapterCount > 0 ? `Cap. ${manga.chapterCount}` : ''}
                   </ThemedText>
-                  <View style={styles.tagRow}>
-                    {manga.categories?.slice(0, 3).map((c) => (
-                      <View key={c.id} style={styles.tag}>
-                        <ThemedText style={styles.tagText}>{c.category?.name ?? ''}</ThemedText>
-                      </View>
-                    ))}
-                  </View>
                 </View>
                 <IconSymbol name="chevron.right" size={14} color={Colors.dark.textMuted} />
               </Pressable>

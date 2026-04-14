@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -247,7 +247,7 @@ export function DownloadsView({ topInset = 0, showHeader = true }: DownloadsView
 
         <View style={styles.coverWrap}>
           {cover ? (
-            <Image source={{ uri: cover }} style={styles.cover} contentFit="cover" />
+            <Image source={{ uri: cover }} style={styles.cover} resizeMode="cover" />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
               <IconSymbol name="book.fill" size={14} color={Colors.dark.textMuted} />

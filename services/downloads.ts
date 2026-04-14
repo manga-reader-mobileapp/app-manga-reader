@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getChapterPages } from './nexus/api';
+import * as MangaLivreApi from './mangalivre/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ export interface QueueItem {
   chapterId: number;
   chapterNumber: string;
   chapterTitle: string | null;
+  chapterSlug?: string; // for MangaLivre (HTML scraping needs slug)
   mangaId: string; // "{source}:{sourceId}"
   source: string;
   sourceId: number;
@@ -202,7 +204,7 @@ export async function enqueueChapters(params: {
   slug: string;
   mangaTitle: string;
   coverUrl: string | null;
-  chapters: Array<{ id: number; number: string; title: string | null }>;
+  chapters: Array<{ id: number; number: string; title: string | null; slug?: string }>;
 }): Promise<void> {
   const queue = await getQueue();
 
@@ -228,6 +230,7 @@ export async function enqueueChapters(params: {
       chapterId: ch.id,
       chapterNumber: ch.number,
       chapterTitle: ch.title,
+      chapterSlug: ch.slug,
       mangaId,
       source: params.source,
       sourceId: params.sourceId,
@@ -405,8 +408,14 @@ async function processQueue(): Promise<void> {
 async function downloadSingleChapter(item: QueueItem): Promise<void> {
   console.log('[DOWNLOADS] Downloading chapter', item.chapterNumber, 'of', item.mangaTitle);
 
-  // 1) Get page URLs from API
-  const { pages } = await getChapterPages(item.chapterId);
+  // 1) Get page URLs based on source
+  let pages: Array<{ pageNumber: number; imageUrl: string }>;
+  if (item.source === 'mangalivre' && item.chapterSlug) {
+    pages = await MangaLivreApi.getChapterPages(item.chapterSlug);
+  } else {
+    const result = await getChapterPages(item.chapterId);
+    pages = result.pages;
+  }
   const totalPages = pages.length;
 
   // Update queue with real totalPages

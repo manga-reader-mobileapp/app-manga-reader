@@ -1,6 +1,7 @@
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,6 +23,8 @@ import {
   type SortBy,
 } from '@/services/nexus/api';
 import type { NexusManga } from '@/services/nexus/types';
+import * as MangaLivreApi from '@/services/mangalivre/api';
+import { getActiveSource } from '@/services/source-context';
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'updatedAt', label: 'Recentes' },
@@ -47,11 +50,20 @@ const STATUS_OPTIONS: { value: MangaStatus | 'all'; label: string }[] = [
 
 const NUM_COLUMNS = 3;
 
+interface DisplayManga {
+  id: string;
+  slug: string;
+  title: string;
+  coverImage: string | null;
+  chapterCount: number;
+  views: number;
+  source: string;
+}
+
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
-  const [mangas, setMangas] = useState<NexusManga[]>([]);
+  const [mangas, setMangas] = useState<DisplayManga[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -67,6 +79,21 @@ export default function ExploreScreen() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList>(null);
+
+  const lastSourceRef = useRef(getActiveSource());
+
+  // Reload on focus if source changed
+  useFocusEffect(
+    useCallback(() => {
+      const s = getActiveSource();
+      if (s !== lastSourceRef.current) {
+        lastSourceRef.current = s;
+        setMangas([]);
+        setPage(1);
+        loadMangas(true);
+      }
+    }, []),
+  );
 
   // Fetch on filter change
   useEffect(() => {
@@ -88,21 +115,60 @@ export default function ExploreScreen() {
       setLoadingMore(true);
     }
 
+    const activeSource = getActiveSource();
     try {
-      const filters: ExploreFilters = {
-        page: nextPage,
-        limit: 30,
-        sortBy,
-        sortOrder: sortBy === 'title' ? 'asc' : 'desc',
-        search: searchQuery || undefined,
-        type: typeFilter === 'all' ? undefined : typeFilter,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-      };
-      const res = await exploreMangas(filters);
-      setMangas((prev) => (reset ? res.data : [...prev, ...res.data]));
-      setPage(nextPage);
-      setTotalPages(res.pages);
-      setTotal(res.total);
+      if (activeSource === 'mangalivre') {
+        let mlMangas;
+        if (searchQuery.trim()) {
+          // Search via chapter API
+          mlMangas = await MangaLivreApi.searchMangas(searchQuery);
+        } else {
+          // Listing with filters
+          const options: { orderby?: 'title' | 'latest' | 'views'; status?: string } = {};
+          if (sortBy === 'title') options.orderby = 'title';
+          else if (sortBy === 'views') options.orderby = 'views';
+          else options.orderby = 'latest';
+          if (statusFilter !== 'all') options.status = statusFilter === 'ongoing' ? 'em-lancamento' : statusFilter === 'completed' ? 'completo' : '';
+          mlMangas = await MangaLivreApi.getMangaListing(nextPage, options);
+        }
+        const display: DisplayManga[] = mlMangas.map((m) => ({
+          id: m.slug,
+          slug: m.slug,
+          title: m.title,
+          coverImage: m.coverUrl,
+          chapterCount: 0,
+          views: 0,
+          source: 'mangalivre',
+        }));
+        setMangas((prev) => (reset ? display : [...prev, ...display]));
+        setPage(nextPage);
+        setTotalPages(searchQuery ? 1 : 56);
+        setTotal(searchQuery ? display.length : 559);
+      } else {
+        const filters: ExploreFilters = {
+          page: nextPage,
+          limit: 30,
+          sortBy,
+          sortOrder: sortBy === 'title' ? 'asc' : 'desc',
+          search: searchQuery || undefined,
+          type: typeFilter === 'all' ? undefined : typeFilter,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+        };
+        const res = await exploreMangas(filters);
+        const display: DisplayManga[] = res.data.map((m) => ({
+          id: String(m.id),
+          slug: m.slug,
+          title: m.title,
+          coverImage: m.coverImage,
+          chapterCount: m.chapterCount,
+          views: m.views,
+          source: 'nexus',
+        }));
+        setMangas((prev) => (reset ? display : [...prev, ...display]));
+        setPage(nextPage);
+        setTotalPages(res.pages);
+        setTotal(res.total);
+      }
     } catch (err) {
       console.error('[EXPLORE] ERROR:', err);
     } finally {
@@ -117,18 +183,18 @@ export default function ExploreScreen() {
     return String(v);
   }
 
-  function renderMangaCard({ item }: { item: NexusManga }) {
+  function renderMangaCard({ item }: { item: DisplayManga }) {
     return (
       <Pressable style={styles.card} onPress={() => router.push(`/manga/${item.slug}`)}>
         {item.coverImage ? (
-          <Image source={{ uri: item.coverImage }} style={styles.cardCover} contentFit="cover" transition={200} />
+          <Image source={{ uri: item.coverImage }} style={styles.cardCover} resizeMode="cover" />
         ) : (
           <View style={[styles.cardCover, styles.placeholder]}>
             <IconSymbol name="book.fill" size={24} color={Colors.dark.textMuted} />
           </View>
         )}
         <ThemedText style={styles.cardTitle} numberOfLines={2}>{item.title}</ThemedText>
-        <ThemedText style={styles.cardSub}>Cap. {item.chapterCount}</ThemedText>
+        {item.chapterCount > 0 && <ThemedText style={styles.cardSub}>Cap. {item.chapterCount}</ThemedText>}
       </Pressable>
     );
   }

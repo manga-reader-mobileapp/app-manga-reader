@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -22,6 +22,7 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getChapterPages } from '@/services/nexus/api';
 import type { NexusChapterRead, NexusReaderPage } from '@/services/nexus/types';
+import * as MangaLivreApi from '@/services/mangalivre/api';
 import { updateReadProgress, markChapterRead } from '@/services/library';
 import { addToHistory } from '@/services/history';
 import { getLocalPages } from '@/services/downloads';
@@ -158,10 +159,10 @@ function AutoImage({ uri, fitWidth, pageNumber, onRedownload }: AutoImageProps) 
       key={retryKey}
       source={{ uri: currentUri }}
       style={{ width: fitWidth, height }}
-      contentFit="fill"
-      transition={0}
+      resizeMode="stretch"
+     
       onLoad={(e) => {
-        const { width: w, height: h } = e.source;
+        const { width: w, height: h } = e.nativeEvent.source;
         if (w && h && !heightLocked.current) {
           const newHeight = fitWidth * (h / w);
           _imageSizeCache[uri] = newHeight;
@@ -177,7 +178,7 @@ function AutoImage({ uri, fitWidth, pageNumber, onRedownload }: AutoImageProps) 
 // ─── Main Reader ──────────────────────────────────────────────────────────────
 
 export default function ReaderScreen() {
-  const { chapterId, mangaTitle, mangaSlug, mangaCover, chapterNumber, chapterList, offline, offlineSource, offlineSourceId, resumePage, sourceMangaId } =
+  const { chapterId, mangaTitle, mangaSlug, mangaCover, chapterNumber, chapterList, offline, offlineSource, offlineSourceId, resumePage, sourceMangaId, sourceType, chapterSlugs } =
     useLocalSearchParams<{
       chapterId: string;
       mangaTitle?: string;
@@ -190,6 +191,8 @@ export default function ReaderScreen() {
       offlineSourceId?: string;
       resumePage?: string;
       sourceMangaId?: string;
+      sourceType?: string;
+      chapterSlugs?: string;
     }>();
 
   const isOffline = offline === 'true';
@@ -225,6 +228,10 @@ export default function ReaderScreen() {
   const loadingChaptersRef = useRef<Set<number>>(new Set());
   const mangaIdRef = useRef<number | null>(sourceMangaId ? Number(sourceMangaId) : null);
   const onlineUrlsCache = useRef<Record<number, string[]>>({});
+  // Map chapter id → slug (for MangaLivre)
+  const chapterSlugsRef = useRef<Record<number, string>>(
+    chapterSlugs ? JSON.parse(chapterSlugs) : {},
+  );
   // Scroll offset tracking (for saving position + slider)
   const scrollOffsetRef = useRef(0);
   const contentHeightRef = useRef(0);
@@ -300,7 +307,7 @@ export default function ReaderScreen() {
 
     // Save initial position
     if (mangaIdRef.current) {
-      updateReadProgress('nexus', mangaIdRef.current, chapterNumber || '', Number(chapterId), 1).catch(() => {});
+      updateReadProgress(sourceType || 'nexus', mangaIdRef.current, chapterNumber || '', Number(chapterId), 1).catch(() => {});
     }
 
     // resumeOffsetY will be applied via contentOffset prop on FlatList
@@ -323,6 +330,16 @@ export default function ReaderScreen() {
           return p;
         }
         return null;
+      } else if (sourceType === 'mangalivre') {
+        // MangaLivre: find the chapter slug from chapterSlugsRef
+        const chSlug = chapterSlugsRef.current[id];
+        if (!chSlug) {
+          console.error('[READER] No slug found for chapter id:', id);
+          return null;
+        }
+        const pages = await MangaLivreApi.getChapterPages(chSlug);
+        loadedChaptersRef.current.add(id);
+        return pages;
       } else {
         const { pages: p, chapter: ch } = await getChapterPages(id);
         loadedChaptersRef.current.add(id);
@@ -432,7 +449,7 @@ export default function ReaderScreen() {
 
     // Save position for jumped chapter
     if (mangaIdRef.current) {
-      updateReadProgress('nexus', mangaIdRef.current, ch.number, ch.id, 1).catch(() => {});
+      updateReadProgress(sourceType || 'nexus', mangaIdRef.current, ch.number, ch.id, 1).catch(() => {});
     }
 
     // Scroll to top
@@ -449,11 +466,11 @@ export default function ReaderScreen() {
     if (now - lastPositionSaveRef.current < 3000) return;
     lastPositionSaveRef.current = now;
     if (mangaIdRef.current) {
-      updateReadProgress('nexus', mangaIdRef.current, chNum, chId, currentPageRef.current).catch(() => {});
+      updateReadProgress(sourceType || 'nexus', mangaIdRef.current, chNum, chId, currentPageRef.current).catch(() => {});
       // Update history
       addToHistory({
         mangaId: mangaIdRef.current,
-        source: 'nexus',
+        source: sourceType || 'nexus',
         slug: mangaSlug || '',
         title: mangaTitle || '',
         coverUrl: mangaCover || null,
@@ -469,8 +486,8 @@ export default function ReaderScreen() {
     if (completedRef.current.has(chId)) return;
     completedRef.current.add(chId);
     if (mangaIdRef.current) {
-      markChapterRead('nexus', mangaIdRef.current, chId).catch(() => {});
-      updateReadProgress('nexus', mangaIdRef.current, chNum, chId).catch(() => {});
+      markChapterRead(sourceType || 'nexus', mangaIdRef.current, chId).catch(() => {});
+      updateReadProgress(sourceType || 'nexus', mangaIdRef.current, chNum, chId).catch(() => {});
     }
   }
 
@@ -696,7 +713,7 @@ export default function ReaderScreen() {
                 style={eStyles.readAllBtn}
                 onPress={() => {
                   if (mangaIdRef.current) {
-                    updateReadProgress('nexus', mangaIdRef.current, activeChapterNumberRef.current, activeChapterIdRef.current);
+                    updateReadProgress(sourceType || 'nexus', mangaIdRef.current, activeChapterNumberRef.current, activeChapterIdRef.current);
                   }
                   goBackToManga();
                 }}
@@ -763,7 +780,7 @@ export default function ReaderScreen() {
                   style={eStyles.readAllBtn}
                   onPress={() => {
                     if (mangaIdRef.current) {
-                      updateReadProgress('nexus', mangaIdRef.current, activeChapterNumberRef.current, activeChapterIdRef.current);
+                      updateReadProgress(sourceType || 'nexus', mangaIdRef.current, activeChapterNumberRef.current, activeChapterIdRef.current);
                     }
                     goBackToManga();
                   }}
@@ -816,9 +833,9 @@ export default function ReaderScreen() {
           onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={200}
           onContentSizeChange={(_, h) => { contentHeightRef.current = h; }}
-          initialNumToRender={6}
-          maxToRenderPerBatch={4}
-          windowSize={9}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={15}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         />
       )}

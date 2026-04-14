@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { resumeQueue } from '@/services/downloads';
+import { setActiveSource } from '@/services/source-context';
 import { setupNotifications } from '@/services/updater';
 import { checkAppUpdate, downloadUpdate, dismissUpdate, getCurrentVersion, type UpdateInfo } from '@/services/app-update';
 
@@ -29,21 +30,21 @@ const SOURCES: MangaSource[] = [
   {
     id: 'nexus',
     name: 'NEXUS Mangás',
-    description: 'Mangás traduzidos em PT-BR',
+    description: 'PT-BR',
     logo: require('@/assets/logos/nexus.png'),
+    available: true,
+  },
+  {
+    id: 'mangalivre',
+    name: 'MangaLivre',
+    description: 'PT-BR',
+    logo: require('@/assets/logos/mangalivre.jpg'),
     available: true,
   },
   {
     id: 'mangadex',
     name: 'MangaDex',
-    description: 'Em breve',
-    logo: null,
-    available: false,
-  },
-  {
-    id: 'mangalivre',
-    name: 'MangaLivre',
-    description: 'Em breve',
+    description: 'Multi-idioma',
     logo: null,
     available: false,
   },
@@ -69,6 +70,7 @@ export default function MainScreen() {
   }, []);
 
   function openScan(sourceId: string) {
+    setActiveSource(sourceId);
     router.push('/(tabs)');
   }
 
@@ -90,37 +92,29 @@ export default function MainScreen() {
       {activeTab === 'scans' && (
         <View style={styles.scansContent}>
           <View style={styles.scansHeader}>
-            <ThemedText style={styles.scansTitle}>Navegar</ThemedText>
-            <ThemedText style={styles.scansSubtitle}>Escolha uma fonte</ThemedText>
+            <ThemedText style={styles.scansTitle}>Fontes</ThemedText>
           </View>
           <View style={styles.sourceList}>
             {SOURCES.map((source) => (
               <Pressable
                 key={source.id}
-                style={[styles.sourceCard, !source.available && styles.sourceCardDisabled]}
+                style={[styles.sourceRow, !source.available && { opacity: 0.4 }]}
                 onPress={() => { if (source.available) openScan(source.id); }}
                 disabled={!source.available}
               >
-                <View style={styles.sourceLogoContainer}>
+                <View style={styles.sourceLogoWrap}>
                   {source.logo ? (
-                    <Image source={source.logo} style={styles.sourceLogo} contentFit="contain" />
+                    <Image source={source.logo} style={styles.sourceLogo} resizeMode="cover" />
                   ) : (
-                    <IconSymbol name="globe" size={28} color={Colors.dark.textMuted} />
+                    <IconSymbol name="globe" size={22} color={Colors.dark.textMuted} />
                   )}
                 </View>
-                <View style={styles.sourceInfo}>
-                  <ThemedText style={[styles.sourceName, !source.available && styles.sourceNameDisabled]}>
-                    {source.name}
-                  </ThemedText>
-                  <ThemedText style={styles.sourceDescription}>{source.description}</ThemedText>
-                </View>
+                <ThemedText style={styles.sourceName}>{source.name}</ThemedText>
+                <ThemedText style={styles.sourceLang}>{source.description}</ThemedText>
                 {source.available ? (
-                  <View style={styles.openBadge}>
-                    <ThemedText style={styles.openBadgeText}>Abrir</ThemedText>
-                    <IconSymbol name="chevron.right" size={12} color={Colors.dark.primary} />
-                  </View>
+                  <IconSymbol name="chevron.right" size={14} color={Colors.dark.textMuted} />
                 ) : (
-                  <IconSymbol name="lock.fill" size={14} color={Colors.dark.textMuted} />
+                  <IconSymbol name="lock.fill" size={12} color={Colors.dark.textMuted} />
                 )}
               </Pressable>
             ))}
@@ -188,31 +182,22 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.dark.background },
 
-  scansContent: { flex: 1, paddingHorizontal: 20 },
-  scansHeader: { paddingTop: 12, paddingBottom: 20 },
+  scansContent: { flex: 1, paddingHorizontal: 16 },
+  scansHeader: { paddingTop: 12, paddingBottom: 16 },
   scansTitle: { fontSize: 28, fontWeight: '800', color: Colors.dark.text },
-  scansSubtitle: { fontSize: 14, color: Colors.dark.textMuted, marginTop: 2 },
 
-  sourceList: { gap: 12 },
-  sourceCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.dark.surface,
-    borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.dark.border, gap: 14,
+  sourceList: { gap: 0 },
+  sourceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border,
   },
-  sourceCardDisabled: { opacity: 0.5 },
-  sourceLogoContainer: {
-    width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.dark.surfaceLight,
+  sourceLogoWrap: {
+    width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.dark.surfaceLight,
     justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
   },
-  sourceLogo: { width: 48, height: 48, borderRadius: 12 },
-  sourceInfo: { flex: 1 },
-  sourceName: { fontSize: 16, fontWeight: '700', color: Colors.dark.text },
-  sourceNameDisabled: { color: Colors.dark.textSecondary },
-  sourceDescription: { fontSize: 13, color: Colors.dark.textSecondary, marginTop: 2 },
-  openBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.dark.primary + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
-  },
-  openBadgeText: { fontSize: 12, fontWeight: '600', color: Colors.dark.primary },
+  sourceLogo: { width: 40, height: 40, borderRadius: 10 },
+  sourceName: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.dark.text },
+  sourceLang: { fontSize: 12, color: Colors.dark.textMuted, marginRight: 4 },
 
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',

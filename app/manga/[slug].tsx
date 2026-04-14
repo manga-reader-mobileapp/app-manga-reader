@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,8 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getMangaBySlug } from '@/services/nexus/api';
 import type { NexusChapter, NexusMangaDetail } from '@/services/nexus/types';
+import * as MangaLivreApi from '@/services/mangalivre/api';
+import { getActiveSource } from '@/services/source-context';
 import {
   addToLibrary,
   isInLibrary,
@@ -40,9 +42,19 @@ import {
   type QueueItem,
 } from '@/services/downloads';
 
+/** Simple hash to generate unique numeric ID from a string */
+function hashSlug(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
 // Unified chapter type for display (works for both online and cached)
 interface DisplayChapter {
   id: number;
+  slug?: string; // chapter slug (for MangaLivre)
   number: string;
   title: string | null;
   views: number;
@@ -52,6 +64,7 @@ interface DisplayChapter {
 export default function MangaDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
+  const [detectedSource, setDetectedSource] = useState(getActiveSource());
   const insets = useSafeAreaInsets();
 
   const [manga, setManga] = useState<NexusMangaDetail | null>(null);
@@ -101,20 +114,20 @@ export default function MangaDetailScreen() {
       if (!mangaId) return;
       // Small delay to ensure AsyncStorage writes from the reader are flushed
       const timer = setTimeout(() => {
-        getReadProgress('nexus', mangaId).then((progress) => {
+        getReadProgress(detectedSource, mangaId).then((progress) => {
           if (progress) {
             setLastRead(progress.chapter);
             setLastReadPage(progress.page);
             setCompletedChap(progress.completedChapter);
           }
         });
-        getChapterPagesProgress('nexus', mangaId).then(setChapterPagesMap);
-        getReadChapterIds('nexus', mangaId).then(setReadIds);
+        getChapterPagesProgress(detectedSource, mangaId).then(setChapterPagesMap);
+        getReadChapterIds(detectedSource, mangaId).then(setReadIds);
         // Refresh downloaded status
         (async () => {
           const ids = new Set<number>();
           for (const ch of chapters) {
-            const done = await isChapterDownloaded('nexus', mangaId, ch.id);
+            const done = await isChapterDownloaded(detectedSource, mangaId, ch.id);
             if (done) ids.add(ch.id);
           }
           setDownloadedIds(ids);
@@ -139,7 +152,7 @@ export default function MangaDetailScreen() {
     async function checkDownloaded() {
       const ids = new Set<number>();
       for (const ch of chapters) {
-        const done = await isChapterDownloaded('nexus', mangaId, ch.id);
+        const done = await isChapterDownloaded(detectedSource, mangaId, ch.id);
         if (done) ids.add(ch.id);
       }
       setDownloadedIds(ids);
@@ -151,71 +164,114 @@ export default function MangaDetailScreen() {
     console.log('[DETAIL] Loading manga:', slug);
     setLoading(true);
 
-    // 1) Check library for cached data first
-    // We don't know mangaId from slug, so we search by slug
+    // 1) Check library for cached data — detect source from saved entry
     let libEntry = null;
     try {
       const { getLibrary } = await import('@/services/library');
       const lib = await getLibrary();
       libEntry = lib.find((m) => m.slug === slug) || null;
+      // If found in library, use the source from the saved entry
+      if (libEntry) {
+        setDetectedSource(libEntry.source);
+      }
     } catch {}
+
+    const source = libEntry?.source || getActiveSource();
+    setDetectedSource(source);
 
     // 2) Try loading from API
     try {
-      const data = await getMangaBySlug(slug!);
-      console.log('[DETAIL] Loaded from API:', data.title, 'chapters:', data.chapters?.length);
-      setManga(data);
-      setMangaId(data.id);
-      setCoverUrl(data.coverImage);
-      setTitle(data.title);
-      setAuthor(data.author || '');
-      setMangaType(data.type);
-      setDescription(data.description || null);
-      setCategories(data.categories?.map((c) => c.name) || []);
-      setViews(data.views);
-      setRating(data.rating);
-      setStatus(data.status);
-      setChapters(
-        (data.chapters || []).map((c) => ({
-          id: c.id,
-          number: c.number,
-          title: c.title,
-          views: c.views,
-          createdAt: c.createdAt,
-        })),
-      );
-      setIsOfflineMode(false);
+      if (source === 'mangalivre') {
+        // MangaLivre — HTML scraping
+        const data = await MangaLivreApi.getMangaDetail(slug!);
+        setManga(null);
+        const mlId = hashSlug(slug!);
+        setMangaId(mlId);
+        setCoverUrl(data.coverUrl);
+        setTitle(data.title);
+        setAuthor(data.author || '');
+        setMangaType(data.type || 'manga');
+        setDescription(data.description || null);
+        setCategories(data.genres || []);
+        setViews(data.views);
+        setRating(data.rating);
+        setStatus(data.status);
+        setChapters(
+          data.chapters.map((c, i) => ({
+            id: hashSlug(c.slug),
+            slug: c.slug,
+            number: c.number,
+            title: c.title,
+            views: 0,
+            createdAt: c.date || '',
+          })),
+        );
+        setIsOfflineMode(false);
 
-      // Sync cache if in library
-      const saved = await isInLibrary('nexus', data.id);
-      setInLib(saved);
-      if (saved) {
-        await syncLibraryCache('nexus', data.id, {
-          totalChapters: data.chapters?.length || 0,
-          cachedChapters: (data.chapters || []).map((c) => ({
+        // Check library
+        const saved = await isInLibrary(source, mlId);
+        setInLib(saved);
+        if (saved) {
+          const progress = await getReadProgress(source, mlId);
+          setLastRead(progress?.chapter || null);
+          setLastReadPage(progress?.page || null);
+          setCompletedChap(progress?.completedChapter || null);
+        }
+      } else {
+        // NEXUS — encrypted JSON API
+        const data = await getMangaBySlug(slug!);
+        setManga(data);
+        setMangaId(data.id);
+        setCoverUrl(data.coverImage);
+        setTitle(data.title);
+        setAuthor(data.author || '');
+        setMangaType(data.type);
+        setDescription(data.description || null);
+        setCategories(data.categories?.map((c) => c.name) || []);
+        setViews(data.views);
+        setRating(data.rating);
+        setStatus(data.status);
+        setChapters(
+          (data.chapters || []).map((c) => ({
             id: c.id,
             number: c.number,
             title: c.title,
             views: c.views,
             createdAt: c.createdAt,
           })),
-          cachedDescription: data.description || null,
-          cachedRating: data.rating,
-          cachedViews: data.views,
-          lastChapterAt: data.chapters?.[0]?.createdAt || null,
-          status: data.status,
-        });
-        const progress = await getReadProgress('nexus', data.id);
-        setLastRead(progress?.chapter || null);
-        setLastReadPage(progress?.page || null);
-        setCompletedChap(progress?.completedChapter || null);
+        );
+        setIsOfflineMode(false);
+
+        // Sync cache if in library
+        const saved = await isInLibrary(detectedSource, data.id);
+        setInLib(saved);
+        if (saved) {
+          await syncLibraryCache(detectedSource, data.id, {
+            totalChapters: data.chapters?.length || 0,
+            cachedChapters: (data.chapters || []).map((c) => ({
+              id: c.id,
+              number: c.number,
+              title: c.title,
+              views: c.views,
+              createdAt: c.createdAt,
+            })),
+            cachedDescription: data.description || null,
+            cachedRating: data.rating,
+            cachedViews: data.views,
+            lastChapterAt: data.chapters?.[0]?.createdAt || null,
+            status: data.status,
+          });
+          const progress = await getReadProgress(detectedSource, data.id);
+          setLastRead(progress?.chapter || null);
+          setLastReadPage(progress?.page || null);
+          setCompletedChap(progress?.completedChapter || null);
+        }
       }
     } catch (err) {
       console.warn('[DETAIL] API failed, trying cache:', err);
 
       // 3) Fallback to cached data
       if (libEntry && libEntry.cachedChapters?.length > 0) {
-        console.log('[DETAIL] Using cached data for:', libEntry.title);
         setManga(null);
         setMangaId(libEntry.sourceId);
         setCoverUrl(libEntry.coverUrl);
@@ -232,12 +288,11 @@ export default function MangaDetailScreen() {
         setInLib(true);
         setIsOfflineMode(true);
 
-        const progress = await getReadProgress('nexus', libEntry.sourceId);
+        const progress = await getReadProgress(detectedSource, libEntry.sourceId);
         setLastRead(progress?.chapter || null);
         setLastReadPage(progress?.page || null);
         setCompletedChap(progress?.completedChapter || null);
       } else {
-        // No cache, show error
         setManga(null);
         setChapters([]);
       }
@@ -251,11 +306,11 @@ export default function MangaDetailScreen() {
     setSaving(true);
     try {
       if (inLib) {
-        await removeFromLibrary('nexus', mangaId);
+        await removeFromLibrary(detectedSource, mangaId);
         setInLib(false);
       } else {
         await addToLibrary({
-          source: 'nexus',
+          source: detectedSource,
           sourceId: mangaId,
           slug: slug!,
           title,
@@ -306,10 +361,10 @@ export default function MangaDetailScreen() {
     try {
       const selected = chapters
         .filter((c) => selectedIds.has(c.id))
-        .map((c) => ({ id: c.id, number: c.number, title: c.title }));
+        .map((c) => ({ id: c.id, number: c.number, title: c.title, slug: c.slug }));
 
       await enqueueChapters({
-        source: 'nexus',
+        source: detectedSource,
         sourceId: mangaId,
         slug: slug!,
         mangaTitle: title,
@@ -328,13 +383,13 @@ export default function MangaDetailScreen() {
     if (selectedIds.size === 0 || !mangaId) return;
     for (const chId of selectedIds) {
       if (downloadedIds.has(chId)) {
-        await deleteDownloadedChapter('nexus', mangaId, chId);
+        await deleteDownloadedChapter(detectedSource, mangaId, chId);
       }
     }
     // Refresh downloaded list
     const ids = new Set<number>();
     for (const ch of chapters) {
-      const done = await isChapterDownloaded('nexus', mangaId, ch.id);
+      const done = await isChapterDownloaded(detectedSource, mangaId, ch.id);
       if (done) ids.add(ch.id);
     }
     setDownloadedIds(ids);
@@ -345,7 +400,7 @@ export default function MangaDetailScreen() {
   async function markSelectedAsRead() {
     if (selectedIds.size === 0 || !mangaId) return;
     const ids = [...selectedIds];
-    await markChaptersRead('nexus', mangaId, ids);
+    await markChaptersRead(detectedSource, mangaId, ids);
     setReadIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(id)); return next; });
     exitSelection();
   }
@@ -359,7 +414,7 @@ export default function MangaDetailScreen() {
     const ids = sorted
       .filter((c) => parseFloat(c.number) <= parseFloat(highest.number))
       .map((c) => c.id);
-    await markChaptersRead('nexus', mangaId, ids);
+    await markChaptersRead(detectedSource, mangaId, ids);
     setReadIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(id)); return next; });
     exitSelection();
   }
@@ -367,7 +422,7 @@ export default function MangaDetailScreen() {
   async function markSelectedAsUnread() {
     if (selectedIds.size === 0 || !mangaId) return;
     const ids = [...selectedIds];
-    await markChaptersUnread('nexus', mangaId, ids);
+    await markChaptersUnread(detectedSource, mangaId, ids);
     setReadIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next; });
     exitSelection();
   }
@@ -376,12 +431,12 @@ export default function MangaDetailScreen() {
     if (!mangaId || chapters.length === 0) return;
     setShowMenu(false);
     await enqueueChapters({
-      source: 'nexus',
+      source: detectedSource,
       sourceId: mangaId,
       slug: slug!,
       mangaTitle: title,
       coverUrl,
-      chapters: chapters.map((c) => ({ id: c.id, number: c.number, title: c.title })),
+      chapters: chapters.map((c) => ({ id: c.id, number: c.number, title: c.title, slug: c.slug })),
     });
   }
 
@@ -389,7 +444,7 @@ export default function MangaDetailScreen() {
     if (!mangaId || chapters.length === 0) return;
     setShowMenu(false);
     const allIds = chapters.map((c) => c.id);
-    await markChaptersRead('nexus', mangaId, allIds);
+    await markChaptersRead(detectedSource, mangaId, allIds);
     setReadIds(new Set(allIds));
   }
 
@@ -414,10 +469,19 @@ export default function MangaDetailScreen() {
       chapterNumber: ch.number,
       chapterList: JSON.stringify(chaptersForNav),
       sourceMangaId: String(mangaId),
+      sourceType: detectedSource,
     };
+    // Pass chapter slug map for MangaLivre
+    if (detectedSource === 'mangalivre') {
+      const slugMap: Record<number, string> = {};
+      for (const c of chaptersAscending) {
+        if (c.slug) slugMap[c.id] = c.slug;
+      }
+      params.chapterSlugs = JSON.stringify(slugMap);
+    }
     if (downloadedIds.has(ch.id)) {
       params.offline = 'true';
-      params.offlineSource = 'nexus';
+      params.offlineSource = detectedSource;
       params.offlineSourceId = String(mangaId);
     }
     router.push({ pathname: '/reader/[chapterId]', params: params as any });
@@ -425,28 +489,10 @@ export default function MangaDetailScreen() {
 
   function handleContinueReading() {
     if (chapters.length === 0) return;
-
     const sorted = [...chapters].sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
-
-    // Find first unread chapter
-    let targetChapter: DisplayChapter;
     const firstUnread = sorted.find((c) => !readIds.has(c.id));
-    targetChapter = firstUnread || sorted[0];
-
-    const chaptersForNav = sorted.map((c) => ({ id: c.id, number: c.number }));
-    const params: Record<string, string> = {
-      chapterId: String(targetChapter.id),
-      mangaTitle: title,
-      mangaSlug: slug!,
-      chapterNumber: targetChapter.number,
-      chapterList: JSON.stringify(chaptersForNav),
-    };
-    if (downloadedIds.has(targetChapter.id)) {
-      params.offline = 'true';
-      params.offlineSource = 'nexus';
-      params.offlineSourceId = String(mangaId);
-    }
-    router.push({ pathname: '/reader/[chapterId]', params: params as any });
+    const target = firstUnread || sorted[0];
+    openReader(target);
   }
 
   if (loading) {
@@ -487,7 +533,7 @@ export default function MangaDetailScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           {cover && (
-            <Image source={{ uri: cover }} style={styles.heroBg} contentFit="cover" blurRadius={20} />
+            <Image source={{ uri: cover }} style={styles.heroBg} resizeMode="cover" blurRadius={20} />
           )}
           <View style={styles.heroBgOverlay} />
 
@@ -526,7 +572,7 @@ export default function MangaDetailScreen() {
 
           <View style={styles.coverContainer}>
             {cover ? (
-              <Image source={{ uri: cover }} style={styles.coverImage} contentFit="cover" transition={300} />
+              <Image source={{ uri: cover }} style={styles.coverImage} resizeMode="cover" />
             ) : (
               <View style={[styles.coverImage, styles.coverPlaceholder]}>
                 <IconSymbol name="book.fill" size={48} color={Colors.dark.textMuted} />
@@ -722,12 +768,16 @@ export default function MangaDetailScreen() {
                   )}
                 </View>
                 <View style={styles.chapterMeta}>
-                  <ThemedText style={[styles.chapterDate, isRead && styles.chapterTextRead]}>{formatDate(ch.createdAt)}</ThemedText>
+                  {ch.createdAt ? (
+                    <ThemedText style={[styles.chapterDate, isRead && styles.chapterTextRead]}>
+                      {ch.createdAt.startsWith('h') ? ch.createdAt : formatDate(ch.createdAt)}
+                    </ThemedText>
+                  ) : null}
                   {pageProgress && !isRead ? (
                     <ThemedText style={styles.chapterPageProgress}>Página: {pageProgress}</ThemedText>
-                  ) : (
+                  ) : ch.views > 0 ? (
                     <ThemedText style={[styles.chapterViews, isRead && styles.chapterTextRead]}>{formatViews(ch.views)} views</ThemedText>
-                  )}
+                  ) : null}
                 </View>
 
                 {isDownloaded ? (

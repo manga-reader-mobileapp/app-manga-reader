@@ -49,7 +49,12 @@
       "Bash(curl -s https://yomumangas.com/mangas/629/ookami-wa-tsuki-ni-koi-wo-suru/13 -b cf_clearance=RfSNfTkGWks1G_cQ3Dk1P7ZpuGpuIHJAb8uOdxL2.Zk-1775763468-1.2.1.1-Ya.c9E0PTyAdcb3P7fDqrCtOHpQoUr8e6VWfxw.kKg4EYmE5QxyMgEA3QnkeWt7RIa0RGb2ZSFz7LCyR9KhPPyVc2AAFsQdXsV.HSqANgeKbF9v61lw2yPNcs6nYn.owiGmBFmqRfN.CsRH.ZgUyte7KmvkRXcI84XCe8mC_3ymGGFQ5YZTqRxijX931hWRcDRNLmFbVN_HLqbRAXvhYdj_OGMHCQ7hkcUdqxa4AR5_9v.z1pktxAxWL8rqMvVlYGQC4ts17uZTvWyK0x.cY_Ayr1NQv74lCWgrToGiTmR02gkPZWRCRPM8P8VuxTq5HLgRHFHU96EO9pAsAXnYeaA -H 'user-agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/146.0.0.0 Safari/537.36')",
       "Bash(curl -s https://api.yomumangas.com/mangas/629/chapters/13 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjE3MjMsImlkIjoxNzIzLCJ1c2VybmFtZSI6ImdpdXNwZTEyIiwicm9sZXMiOltdLCJpYXQiOjE3NzU3NjUyNjEsImV4cCI6MTgwNzMyMjg2MX0.D2MZHS2HlRSD7euio8eIDQNjI9GGN1hxbhYsbYP__GA')",
       "Bash(curl -s -o /dev/null -w '%{http_code}' https://yomumangas.com/mangas/629/ookami-wa-tsuki-ni-koi-wo-suru/13 -H 'User-Agent: Mozilla/5.0 \\(Linux; Android 14; Pixel 8\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/131.0.0.0 Mobile Safari/537.36' -H 'Accept: text/html,application/xhtml+xml' -H 'Accept-Language: pt-BR,pt;q=0.9')",
-      "Bash(curl -s -o /dev/null -w '%{http_code}' https://yomumangas.com/mangas/629/ookami-wa-tsuki-ni-koi-wo-suru/13 -H 'User-Agent: okhttp/4.12.0')"
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://yomumangas.com/mangas/629/ookami-wa-tsuki-ni-koi-wo-suru/13 -H 'User-Agent: okhttp/4.12.0')",
+      "WebFetch(domain:mangalivre.blog)",
+      "Bash(rm -rf node_modules)",
+      "Bash(rm -f yarn.lock)",
+      "Bash(npm install:*)",
+      "Bash(find app:*)"
     ],
     "additionalDirectories": [
       "C:\\dev\\yomuverse"

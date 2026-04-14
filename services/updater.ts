@@ -3,6 +3,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import { getMangaBySlug } from './nexus/api';
+import * as MangaLivreApi from './mangalivre/api';
 import { getLibrary, syncLibraryCache, type LibraryManga } from './library';
 import { getCategories } from './categories';
 
@@ -121,12 +122,31 @@ export async function checkForUpdates(overrideCategories?: string[]): Promise<{ 
 
   for (const manga of mangasToCheck) {
     try {
-      const data = await getMangaBySlug(manga.slug);
-      const apiChapterIds = new Set((data.chapters || []).map((c) => c.id));
-      const cachedChapterIds = new Set((manga.cachedChapters || []).map((c) => c.id));
+      // Fetch chapters based on source
+      let apiChapters: Array<{ id: number; number: string; title: string | null; views: number; createdAt: string }>;
+      if (manga.source === 'mangalivre') {
+        const mlData = await MangaLivreApi.getMangaDetail(manga.slug);
+        apiChapters = mlData.chapters.map((c, i) => ({
+          id: c.id || i + 1,
+          number: c.number,
+          title: c.title,
+          views: 0,
+          createdAt: c.date || '',
+        }));
+      } else {
+        const data = await getMangaBySlug(manga.slug);
+        apiChapters = (data.chapters || []).map((c) => ({
+          id: c.id,
+          number: c.number,
+          title: c.title,
+          views: c.views,
+          createdAt: c.createdAt,
+        }));
+      }
 
-      // Find new chapters (in API but not in cache)
-      const newChapters = (data.chapters || []).filter((c) => !cachedChapterIds.has(c.id));
+      const apiChapterIds = new Set(apiChapters.map((c) => c.id));
+      const cachedChapterIds = new Set((manga.cachedChapters || []).map((c) => c.id));
+      const newChapters = apiChapters.filter((c) => !cachedChapterIds.has(c.id));
 
       if (newChapters.length > 0) {
         // Sort to find the latest chapter
@@ -136,20 +156,9 @@ export async function checkForUpdates(overrideCategories?: string[]): Promise<{ 
         const latestNew = sorted[0];
 
         // Update cache
-        await syncLibraryCache('nexus', manga.sourceId, {
-          totalChapters: data.chapters?.length || 0,
-          cachedChapters: (data.chapters || []).map((c) => ({
-            id: c.id,
-            number: c.number,
-            title: c.title,
-            views: c.views,
-            createdAt: c.createdAt,
-          })),
-          cachedDescription: data.description || null,
-          cachedRating: data.rating,
-          cachedViews: data.views,
-          lastChapterAt: data.chapters?.[0]?.createdAt || null,
-          status: data.status,
+        await syncLibraryCache(manga.source, manga.sourceId, {
+          totalChapters: apiChapters.length,
+          cachedChapters: apiChapters,
         });
 
         // Send notification — only mention the latest chapter

@@ -38,8 +38,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="library"
         options={{
-          title: 'Biblioteca',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="bookmark.fill" color={color} />,
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>
