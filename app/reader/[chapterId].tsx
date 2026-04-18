@@ -15,7 +15,9 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  runOnJS,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -256,6 +258,59 @@ export default function ReaderScreen() {
   }
 
   const controlsOpacity = useSharedValue(1);
+
+  // Pinch zoom + pan for scroll mode
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const focalX = useSharedValue(0);
+  const focalY = useSharedValue(0);
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart((e) => {
+      focalX.value = e.focalX;
+      focalY.value = e.focalY;
+    })
+    .onUpdate((e) => {
+      const newScale = Math.max(1, Math.min(savedScale.value * e.scale, 4));
+      scale.value = newScale;
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      if (scale.value <= 1) {
+        // Reset pan when zoomed out
+        translateX.value = withTiming(0);
+        translateY.value = withTiming(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .minPointers(2)
+    .onUpdate((e) => {
+      if (scale.value > 1) {
+        translateX.value = savedTranslateX.value + e.translationX;
+        translateY.value = savedTranslateY.value + e.translationY;
+      }
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const zoomGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  const zoomStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
   const settingsTranslate = useSharedValue(W);
   const scrollListRef = useRef<FlatList>(null);
   const pageListRef = useRef<FlatList>(null);
@@ -822,22 +877,26 @@ export default function ReaderScreen() {
     >
       {/* ========== SCROLL MODE ========== */}
       {readingMode === 'scroll' && (
-        <FlatList
-          ref={scrollListRef}
-          data={flatData}
-          keyExtractor={(item) => item.key}
-          renderItem={renderScrollItem}
-          showsVerticalScrollIndicator={false}
-          onViewableItemsChanged={onViewableScroll}
-          viewabilityConfig={viewConfigScroll}
-          onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
-          scrollEventThrottle={200}
-          onContentSizeChange={(_, h) => { contentHeightRef.current = h; }}
-          initialNumToRender={8}
-          maxToRenderPerBatch={6}
-          windowSize={15}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-        />
+        <GestureDetector gesture={zoomGesture}>
+          <Animated.View style={[{ flex: 1 }, zoomStyle]}>
+            <FlatList
+              ref={scrollListRef}
+              data={flatData}
+              keyExtractor={(item) => item.key}
+              renderItem={renderScrollItem}
+              showsVerticalScrollIndicator={false}
+              onViewableItemsChanged={onViewableScroll}
+              viewabilityConfig={viewConfigScroll}
+              onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={200}
+              onContentSizeChange={(_, h) => { contentHeightRef.current = h; }}
+              initialNumToRender={8}
+              maxToRenderPerBatch={6}
+              windowSize={15}
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            />
+          </Animated.View>
+        </GestureDetector>
       )}
 
       {/* ========== PAGE MODE ========== */}
