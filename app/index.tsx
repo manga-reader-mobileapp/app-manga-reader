@@ -15,6 +15,7 @@ import { resumeQueue } from '@/services/downloads';
 import { setActiveSource } from '@/services/source-context';
 import { setupNotifications } from '@/services/updater';
 import { checkAppUpdate, downloadUpdate, dismissUpdate, getCurrentVersion, type UpdateInfo } from '@/services/app-update';
+import { nexusIsLoggedIn } from '@/services/nexus/api';
 
 type MainTab = 'library' | 'history' | 'downloads' | 'scans' | 'settings';
 
@@ -69,7 +70,15 @@ export default function MainScreen() {
     });
   }, []);
 
-  function openScan(sourceId: string) {
+  async function openScan(sourceId: string) {
+    // NEXUS requires login
+    if (sourceId === 'nexus') {
+      const loggedIn = await nexusIsLoggedIn();
+      if (!loggedIn) {
+        router.push('/nexus-login' as any);
+        return;
+      }
+    }
     setActiveSource(sourceId);
     router.push('/(tabs)');
   }

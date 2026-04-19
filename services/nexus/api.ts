@@ -19,28 +19,104 @@ function buildUrl(endpoint: string): string {
     : raw;
 }
 
-const HEADERS: Record<string, string> = {
-  Accept: 'application/json',
-  Referer: 'https://nexustoons.com/',
-};
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-async function fetchDecrypted<T>(endpoint: string): Promise<T> {
-  console.log('[NEXUS] Fetching endpoint:', endpoint);
+const TOKEN_KEY = 'nexus_auth_token';
+const CREDS_KEY = 'nexus_credentials';
+const EMAIL_KEY = 'nexus_email';
+
+async function getHeaders(): Promise<Record<string, string>> {
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const h: Record<string, string> = {
+    'Accept': 'application/json, text/plain, */*',
+    'Referer': 'https://nexustoons.com/',
+    'X-App-Key': 'NxT_s3cur3_k3y_2026!xK9mPqL',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+  };
+  if (token) h['Authorization'] = `Bearer ${token}`;
+  return h;
+}
+
+/** Login with credentials and save token + credentials for auto re-login */
+export async function nexusLogin(username: string, password: string): Promise<boolean> {
+  try {
+    const url = Platform.OS === 'web' ? `${CORS_PROXY}${encodeURIComponent(`${NEXUS_API}/login`)}` : `${NEXUS_API}/login`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json',
+        'Referer': 'https://nexustoons.com/login',
+        'X-App-Key': 'NxT_s3cur3_k3y_2026!xK9mPqL',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+      },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) return false;
+
+    const data = await res.json();
+    const token = data.token || data.accessToken || data.access_token || data.jwt;
+    if (token) {
+      await AsyncStorage.setItem(TOKEN_KEY, token);
+      // Save credentials for auto re-login
+      await AsyncStorage.setItem(CREDS_KEY, JSON.stringify({ username, password }));
+      await AsyncStorage.setItem(EMAIL_KEY, data.user?.email || username);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error('[NEXUS] Login error:', err);
+    return false;
+  }
+}
+
+/** Try to re-login using saved credentials */
+async function tryAutoRelogin(): Promise<boolean> {
+  const credsRaw = await AsyncStorage.getItem(CREDS_KEY);
+  if (!credsRaw) return false;
+  try {
+    const { username, password } = JSON.parse(credsRaw);
+    console.log('[NEXUS] Auto re-login...');
+    return await nexusLogin(username, password);
+  } catch {
+    return false;
+  }
+}
+
+export async function nexusLogout(): Promise<void> {
+  await AsyncStorage.multiRemove([TOKEN_KEY, CREDS_KEY, EMAIL_KEY]);
+}
+
+export async function nexusIsLoggedIn(): Promise<boolean> {
+  return !!(await AsyncStorage.getItem(TOKEN_KEY));
+}
+
+export async function nexusGetEmail(): Promise<string | null> {
+  return AsyncStorage.getItem(EMAIL_KEY);
+}
+
+async function fetchDecrypted<T>(endpoint: string, isRetry = false): Promise<T> {
   try {
     await initCrypto();
 
     const url = buildUrl(endpoint);
-    console.log('[NEXUS] URL:', url);
-    const res = await fetch(url, { headers: HEADERS });
-    console.log('[NEXUS] Status:', res.status);
+    let res = await fetch(url, { headers: await getHeaders() });
+
+    // If 401, try auto re-login once
+    if (res.status === 401 && !isRetry) {
+      console.log('[NEXUS] 401 received, trying auto re-login');
+      const relogged = await tryAutoRelogin();
+      if (relogged) {
+        // Retry with new token
+        res = await fetch(url, { headers: await getHeaders() });
+      }
+    }
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status} for ${endpoint}`);
     }
 
     const json: NexusEncryptedResponse = await res.json();
-    console.log('[NEXUS] Encrypted k:', json.k, 'v:', json.v, 'd:', json.d?.length);
-
     const decrypted = decrypt(json.k, json.d);
     return JSON.parse(decrypted) as T;
   } catch (err) {

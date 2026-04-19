@@ -55,7 +55,9 @@
       "Bash(rm -f yarn.lock)",
       "Bash(npm install:*)",
       "Bash(find app:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(curl -s -X POST \"https://nexustoons.com/api/login\" -H \"X-App-Key: NxT_s3cur3_k3y_2026!xK9mPqL\" -H \"Referer: https://nexustoons.com/login\" -H \"Accept: application/json, text/plain, */*\" -H \"Content-Type: application/json\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/147.0.0.0 Safari/537.36\" --data-raw '{\"username\":\"giuseppe2017.gg@gmail.com\",\"password\":\"123456\"}')",
+      "Bash(curl -s \"https://nexustoons.com/api/mangas?limit=2&page=1&sortBy=views&includeNsfw=false\" -H \"X-App-Key: NxT_s3cur3_k3y_2026!xK9mPqL\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgwMTc1LCJ1c2VybmFtZSI6InppcHppcHphcCIsImlzU3RhZmYiOmZhbHNlLCJleHAiOjE3NzcxNzI5NTEsImlhdCI6MTc3NjU2ODE1MX0.hhktHTAsum4tjJN--gU-0thsaBHYDdX5xhelJa4Vcro\" -H \"Referer: https://nexustoons.com/\" -o /dev/null -w \"%{http_code}\")"
     ],
     "additionalDirectories": [
       "C:\\dev\\yomuverse"

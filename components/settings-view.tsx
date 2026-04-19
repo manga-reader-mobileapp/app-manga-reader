@@ -16,6 +16,7 @@ const MENU_ITEMS = [
   { icon: 'arrow.down.circle' as const, label: 'Fila de downloads', route: null },
   { icon: 'folder.fill' as const, label: 'Categorias', route: '/categories' },
   { icon: 'globe' as const, label: 'Atualizações automáticas', route: '/update-settings' },
+  { icon: 'lock.fill' as const, label: 'Login NEXUS', route: '/nexus-login' },
   { icon: 'square.and.arrow.down' as const, label: 'Dados e armazenamento', route: null },
 ];
 

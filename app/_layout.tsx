@@ -38,6 +38,10 @@ export default function RootLayout() {
           options={{ animation: 'slide_from_right' }}
         />
         <Stack.Screen
+          name="nexus-login"
+          options={{ animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
           name="downloads/[mangaId]"
           options={{ animation: 'slide_from_right' }}
         />

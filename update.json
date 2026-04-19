@@ -1,5 +1,5 @@
 {
-  "version": "1.1.2",
-  "url": "https://github.com/manga-reader-mobileapp/app-manga-reader/releases/download/v1.1.2/app-release.apk",
-  "changelog": "Zoom com pinça no leitor (modo scroll)"
+  "version": "1.1.3",
+  "url": "https://github.com/manga-reader-mobileapp/app-manga-reader/releases/download/v1.1.3/app-release.apk",
+  "changelog": "Login NEXUS com auto re-login em caso de token expirado"
 }
