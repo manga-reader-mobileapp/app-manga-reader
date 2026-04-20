@@ -74,12 +74,12 @@ async function main() {
 
   console.log("=== Buscando API ===\n");
   const res = await fetch(
-    "https://nexustoons.com/api/mangas?limit=5&includeNsfw=true&sortBy=views",
+    "https://nx-toons.xyz/api/mangas?limit=5&includeNsfw=true&sortBy=views",
     {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         Accept: "application/json",
-        Referer: "https://nexustoons.com/",
+        Referer: "https://nx-toons.xyz/",
       },
     },
   );

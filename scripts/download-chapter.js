@@ -14,18 +14,18 @@ function decrypt(keys, ki, b64) { const a = keys[ki], s = a.key, r = a.rsbox; co
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   Accept: "application/json",
-  Referer: "https://nexustoons.com/",
+  Referer: "https://nx-toons.xyz/",
 };
 
 async function fetchDecrypted(endpoint, keys) {
-  const res = await fetch(`https://nexustoons.com/api${endpoint}`, { headers: HEADERS });
+  const res = await fetch(`https://nx-toons.xyz/api${endpoint}`, { headers: HEADERS });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${endpoint}`);
   const json = await res.json();
   return JSON.parse(decrypt(keys, json.k, json.d));
 }
 
 async function downloadFile(url, filepath) {
-  const res = await fetch(url, { headers: { Referer: "https://nexustoons.com/" }, redirect: "follow" });
+  const res = await fetch(url, { headers: { Referer: "https://nx-toons.xyz/" }, redirect: "follow" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const buffer = Buffer.from(await res.arrayBuffer());
   fs.writeFileSync(filepath, buffer);
@@ -90,7 +90,7 @@ async function main() {
     console.log(`[CAP ${ch.number}] ${data.totalPages} paginas`);
 
     for (let i = 0; i < data.totalPages; i++) {
-      const pageUrl = `https://nexustoons.com/api/p/${data.pageToken}/${i}`;
+      const pageUrl = `https://nx-toons.xyz/api/p/${data.pageToken}/${i}`;
       const filename = `${String(i + 1).padStart(3, "0")}.webp`;
       const filepath = path.join(chapterDir, filename);
 

@@ -525,7 +525,7 @@ async function resolveRedirect(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
       method: 'HEAD',
-      headers: { Referer: 'https://nexustoons.com/' },
+      headers: { Referer: 'https://nx-toons.xyz/' },
       redirect: 'follow',
     });
     // After following redirects, res.url is the final URL

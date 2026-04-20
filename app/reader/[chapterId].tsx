@@ -709,7 +709,7 @@ export default function ReaderScreen() {
       // Resolve 302 redirect
       const res = await fetch(onlineUrl, {
         method: 'HEAD',
-        headers: { Referer: 'https://nexustoons.com/' },
+        headers: { Referer: 'https://nx-toons.xyz/' },
         redirect: 'follow',
       });
       const realUrl = res.url || onlineUrl;

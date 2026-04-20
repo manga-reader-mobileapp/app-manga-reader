@@ -178,7 +178,7 @@ export default function NexusLoginScreen() {
           </Pressable>
 
           <ThemedText style={styles.hint}>
-            Não tem conta? Crie em nexustoons.com
+            Não tem conta? Crie em nx-toons.xyz
           </ThemedText>
         </View>
           </>

@@ -9,7 +9,7 @@ import type {
   NexusReaderPage,
 } from './types';
 
-const NEXUS_API = 'https://nexustoons.com/api';
+const NEXUS_API = 'https://nx-toons.xyz/api';
 const CORS_PROXY = 'https://corsproxy.io/?url=';
 
 function buildUrl(endpoint: string): string {
@@ -29,7 +29,7 @@ async function getHeaders(): Promise<Record<string, string>> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   const h: Record<string, string> = {
     'Accept': 'application/json, text/plain, */*',
-    'Referer': 'https://nexustoons.com/',
+    'Referer': 'https://nx-toons.xyz/',
     'X-App-Key': 'NxT_s3cur3_k3y_2026!xK9mPqL',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
   };
@@ -46,7 +46,7 @@ export async function nexusLogin(username: string, password: string): Promise<bo
       headers: {
         'Accept': 'application/json, text/plain, */*',
         'Content-Type': 'application/json',
-        'Referer': 'https://nexustoons.com/login',
+        'Referer': 'https://nx-toons.xyz/login',
         'X-App-Key': 'NxT_s3cur3_k3y_2026!xK9mPqL',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
       },
