@@ -40,13 +40,7 @@ class AppUpdateChecker {
     }
 }
 
-val GITHUB_REPO: String by lazy {
-    if (isPreviewBuildType) {
-        "mihonapp/mihon-preview"
-    } else {
-        "mihonapp/mihon"
-    }
-}
+val GITHUB_REPO: String = "manga-reader-mobileapp/app-manga-reader"
 
 val RELEASE_TAG: String by lazy {
     if (isPreviewBuildType) {

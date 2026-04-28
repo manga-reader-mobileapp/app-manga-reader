@@ -257,7 +257,6 @@ class MainActivity : BaseActivity() {
 
                 CheckForUpdates()
                 ShowOnboarding()
-                ShowDonationCampaign()
             }
         }
 

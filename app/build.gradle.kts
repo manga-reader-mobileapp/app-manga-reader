@@ -26,8 +26,8 @@ android {
     defaultConfig {
         applicationId = "com.mangaverse.app"
 
-        versionCode = 22
-        versionName = "0.19.9"
+        versionCode = 23
+        versionName = "2.0.0"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getLatestCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getLatestCommitSha()}\"")
@@ -49,6 +49,8 @@ android {
             isShrinkResources = Config.enableCodeShrink
 
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
+
+            signingConfig = debug.signingConfig
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = true)}\"")
         }
