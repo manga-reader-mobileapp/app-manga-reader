@@ -1,9 +1,9 @@
 package eu.kanade.tachiyomi.source.builtin.nexustoons
 
-import eu.kanade.tachiyomi.source.builtin.tryParse
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import keiyoushi.utils.tryParse
 import kotlinx.serialization.Serializable
 import java.text.SimpleDateFormat
 import java.util.Locale

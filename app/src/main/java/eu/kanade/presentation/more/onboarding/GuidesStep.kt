@@ -10,7 +10,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
@@ -26,16 +25,13 @@ internal class GuidesStep(
 
     @Composable
     override fun Content() {
-        val handler = LocalUriHandler.current
-
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
-            Text(stringResource(MR.strings.onboarding_guides_new_user, stringResource(MR.strings.app_name)))
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { handler.openUri(GETTING_STARTED_URL) },
+                onClick = {},
             ) {
                 Text(stringResource(MR.strings.getting_started_guide))
             }
@@ -55,8 +51,6 @@ internal class GuidesStep(
         }
     }
 }
-
-const val GETTING_STARTED_URL = "https://mihon.app/docs/guides/getting-started"
 
 @PreviewLightDark
 @Composable

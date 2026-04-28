@@ -4,6 +4,7 @@ import android.content.Context
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.builtin.nexustoons.NexusToons
+import eu.kanade.tachiyomi.source.builtin.yomucomics.YomuComics
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +47,7 @@ class AndroidSourceManager(
         it.values.filterIsInstance<CatalogueSource>()
     }
 
-    private val builtinSources: List<Source> by lazy { listOf(NexusToons()) }
+    private val builtinSources: List<Source> by lazy { listOf(NexusToons(), YomuComics()) }
 
     init {
         scope.launch {

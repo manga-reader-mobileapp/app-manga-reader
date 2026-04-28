@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.source.builtin.nexustoons
 
 import android.util.Base64
-import eu.kanade.tachiyomi.source.builtin.parseAs
+import keiyoushi.utils.parseAs
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody

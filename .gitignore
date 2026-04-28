@@ -14,3 +14,7 @@ local.properties
 
 # macOS specific files
 .DS_Store
+
+# Local artifacts (not committed)
+/release-out
+/app/src/main/_assets_temp
