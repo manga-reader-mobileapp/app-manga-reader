@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.source
 import android.content.Context
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.extension.ExtensionManager
+import eu.kanade.tachiyomi.source.builtin.nexustoons.NexusToons
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,8 @@ class AndroidSourceManager(
         it.values.filterIsInstance<CatalogueSource>()
     }
 
+    private val builtinSources: List<Source> by lazy { listOf(NexusToons()) }
+
     init {
         scope.launch {
             extensionManager.installedExtensionsFlow
@@ -58,6 +61,10 @@ class AndroidSourceManager(
                             ),
                         ),
                     )
+                    builtinSources.forEach {
+                        mutableMap[it.id] = it
+                        registerStubSource(StubSource.from(it))
+                    }
                     extensions.forEach { extension ->
                         extension.sources.forEach {
                             mutableMap[it.id] = it
