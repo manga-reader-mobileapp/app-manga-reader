@@ -26,8 +26,8 @@ android {
     defaultConfig {
         applicationId = "com.mangaverse.app"
 
-        versionCode = 24
-        versionName = "2.0.1"
+        versionCode = 25
+        versionName = "2.0.2"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getLatestCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getLatestCommitSha()}\"")
