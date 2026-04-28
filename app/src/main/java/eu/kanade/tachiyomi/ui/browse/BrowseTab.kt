@@ -13,7 +13,6 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.ui.browse.migration.sources.migrateSourceTab
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import eu.kanade.tachiyomi.ui.browse.source.sourcesTab
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -45,7 +44,6 @@ data object BrowseTab : Tab {
 
         val tabs = persistentListOf(
             sourcesTab(),
-            migrateSourceTab(),
         )
 
         val state = rememberPagerState { tabs.size }

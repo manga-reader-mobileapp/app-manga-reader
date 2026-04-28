@@ -125,14 +125,6 @@ fun MangaToolbar(
                             ),
                         )
                     }
-                    if (onClickMigrate != null) {
-                        add(
-                            AppBar.OverflowAction(
-                                title = stringResource(MR.strings.action_migrate),
-                                onClick = onClickMigrate,
-                            ),
-                        )
-                    }
                     if (onClickShare != null) {
                         add(
                             AppBar.OverflowAction(
