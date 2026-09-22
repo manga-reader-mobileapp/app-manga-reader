@@ -16,8 +16,10 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
 class NexusToons :
@@ -37,10 +39,45 @@ class NexusToons :
 
     private val preferences: SharedPreferences by getPreferencesLazy()
 
+    private val pageTokenToChapterId = ConcurrentHashMap<String, String>()
+
     override val client = network.cloudflareClient.newBuilder()
         .rateLimit(3, 1)
         .addInterceptor(NexusDecrypt.createInterceptor())
+        .addInterceptor(expiredPageTokenInterceptor())
         .build()
+
+    private fun expiredPageTokenInterceptor() = Interceptor { chain ->
+        val request = chain.request()
+        val response = chain.proceed(request)
+
+        if (response.code != 403) return@Interceptor response
+
+        val pathSegments = request.url.pathSegments
+        // Match "/api/p/<token>/<index>"
+        if (pathSegments.size < 4 || pathSegments[0] != "api" || pathSegments[1] != "p") {
+            return@Interceptor response
+        }
+
+        val oldToken = pathSegments[2]
+        val chapterId = pageTokenToChapterId[oldToken] ?: return@Interceptor response
+
+        response.close()
+
+        val refreshed = try {
+            chain.proceed(GET("$baseUrl/api/read/$chapterId", apiHeaders))
+                .parseAs<ReadResponse>()
+        } catch (_: Exception) {
+            return@Interceptor chain.proceed(request)
+        }
+
+        val newToken = refreshed.pageToken
+        if (newToken == oldToken) return@Interceptor chain.proceed(request)
+        pageTokenToChapterId[newToken] = chapterId
+
+        val newUrl = request.url.newBuilder().setPathSegment(2, newToken).build()
+        chain.proceed(request.newBuilder().url(newUrl).build())
+    }
 
     private val apiHeaders by lazy {
         headers.newBuilder()
@@ -246,6 +283,10 @@ class NexusToons :
                     imageUrl = page.imageUrl!!,
                 )
             }
+        }
+        val chapterId = response.request.url.pathSegments.lastOrNull().orEmpty()
+        if (chapterId.isNotEmpty()) {
+            pageTokenToChapterId[readResponse.pageToken] = chapterId
         }
         return pages.mapIndexed { index, _ ->
             Page(
